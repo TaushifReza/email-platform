@@ -1,0 +1,112 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: email_platform_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  redis:
+    image: redis:7
+    networks:
+      - backend
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - backend
+
+  rustfs:
+    image: rustfs/rustfs:latest
+    environment:
+      RUSTFS_ENDPOINT: http://rustfs:3000
+    ports:
+      - "3000:3000"
+    networks:
+      - backend
+
+  migrate:
+    build:
+      context: .
+      dockerfile: ./backend/Dockerfile.migrate
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgres://postgres:password@postgres:5432/email_platform_dev
+      STORAGE_ENDPOINT: http://rustfs:3000
+      STORAGE_ACCESS_KEY: test-access-key
+      STORAGE_SECRET_KEY: test-secret-key
+    networks:
+      - backend
+
+  api:
+    build:
+      context: .
+      dockerfile: ./backend/Dockerfile.api
+    depends_on:
+      - postgres
+      - redis
+      - migrate
+    environment:
+      DATABASE_URL: postgres://postgres:password@postgres:5432/email_platform_dev
+      REDIS_URL: redis://redis:6379
+      STORAGE_ENDPOINT: http://rustfs:3000
+      STORAGE_ACCESS_KEY: test-access-key
+      STORAGE_SECRET_KEY: test-secret-key
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+    networks:
+      - backend
+
+  worker:
+    build:
+      context: .
+      dockerfile: ./backend/Dockerfile.worker
+    depends_on:
+      - postgres
+      - redis
+      - migrate
+    environment:
+      DATABASE_URL: postgres://postgres:password@postgres:5432/email_platform_dev
+      REDIS_URL: redis://redis:6379
+      STORAGE_ENDPOINT: http://rustfs:3000
+      STORAGE_ACCESS_KEY: test-access-key
+      STORAGE_SECRET_KEY: test-secret-key
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+    networks:
+      - backend
+
+  nginx:
+    image: nginx:alpine
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf
+    networks:
+      - backend
+      - edge
+
+volumes:
+  postgres_data:
+
+networks:
+  backend:
+    driver: bridge
+  edge:
+    driver: bridge

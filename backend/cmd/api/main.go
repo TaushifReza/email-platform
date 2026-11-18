@@ -1,11 +1,17 @@
 package main
 
 import (
+	"context"
 	"log"
+	"net/http"
 	"os"
+	"time"
 
-	"github.com/TaushifReza/email-platform/internal/platform/config"
-	"github.com/TaushifReza/email-platform/internal/platform/logging"
+	"github.com/TaushifReza/email-platform/backend/internal/platform/config"
+	"github.com/TaushifReza/email-platform/backend/internal/platform/health"
+	"github.com/TaushifReza/email-platform/backend/internal/platform/logging"
+	"github.com/jackc/pgx/v5"
+	redis "github.com/go-redis/redis/v8"
 )
 
 func main() {
@@ -20,5 +26,38 @@ func main() {
 	}
 
 	logger.Info("starting api service")
-	logger.Info("API service started successfully")
+
+	// Initialize health checker with database
+	dbChecker := &health.DBChecker{DSN: cfg.DatabaseDSN}
+	
+	// Connect to Redis if configured
+	var redisClient *redis.Client
+	if cfg.RedisURL != "" {
+		redisClient = redis.NewClient(&redis.Options{
+			Addr: cfg.RedisURL,
+		})
+	}
+
+	// Create health server
+	h := health.New(dbChecker, redisClient)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", h.Healthz)
+	mux.HandleFunc("/readyz", h.Readyz)
+
+	srv := &http.Server{
+		Addr:         cfg.ListenAddr,
+		Handler:      mux,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+
+	go func() {
+		logger.Info("API service starting on " + cfg.ListenAddr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("API server error", "error", err)
+		}
+	}()
+
+	// Keep the main goroutine alive
+	select {}
 }

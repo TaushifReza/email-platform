@@ -1,5 +1,5 @@
 # Makefile for email-platform project
-.PHONY: ci test lint test-module gen dev-up dev-down crash-suite
+.PHONY: ci test lint test-module gen dev-up dev-down dev-logs crash-suite
 
 ci: test lint
 	@echo "All CI checks passed"
@@ -14,12 +14,16 @@ lint:
 	golangci-lint run
 
 gen:
-	@echo "Sqlc generation skipped (empty queries directory)"
+	sqlc generate
 
 dev-up:
-	@echo "Starting development environment (not implemented)"
+	docker compose -f infra/dev/docker-compose.yml up -d --build
+
 dev-down:
-	@echo "Stopping development environment (not implemented)"
+	docker compose -f infra/dev/docker-compose.yml down
+
+dev-logs:
+	docker compose -f infra/dev/docker-compose.yml logs
 
 crash-suite:
 	@echo "Not implemented"

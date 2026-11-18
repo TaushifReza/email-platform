@@ -11,6 +11,7 @@
 - [x] Added recipient data processing
 - [x] Set up basic authentication flow
 - [x] Fixed linter errors in config package (err113, mnd, gci, godot, nlreturn, wsl)
+- [x] 2026-11-18 WP01 3: Created dev/staging compose files (postgres, redis, mailpit, S3), nginx config, /healthz and /readyz endpoints. Makefile dev-up/down targets functional. Tests not run due to module conflicts. Next: WP01 4 - GitHub Actions workflow with Postgres service, go test, lint, govulncheck, gosec, frontend typecheck and build, secret scan.
 
 ## Current Work Package: WP01: Foundations
 

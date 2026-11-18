@@ -50,13 +50,7 @@ func (c *redactCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 	var redactedFields []zapcore.Field
 
 	for _, field := range fields {
-		if strings.Contains(strings.ToLower(field.Key), "password") ||
-			strings.Contains(strings.ToLower(field.Key), "passwd") ||
-			strings.Contains(strings.ToLower(field.Key), "secret") ||
-			strings.Contains(strings.ToLower(field.Key), "token") ||
-			strings.Contains(strings.ToLower(field.Key), "seed") ||
-			strings.Contains(strings.ToLower(field.Key), "authorization") ||
-			strings.Contains(strings.ToLower(field.Key), "api_key") {
+		if isSensitiveKey(field.Key) {
 			// Redact the value of sensitive fields
 			redactedFields = append(redactedFields, zap.String(field.Key, "[REDACTED]"))
 		} else {
@@ -69,4 +63,17 @@ func (c *redactCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 
 func (c *redactCore) Sync() error {
 	return c.core.Sync()
+}
+
+// isSensitiveKey reports whether a field key should be redacted
+func isSensitiveKey(key string) bool {
+	lowerKey := strings.ToLower(key)
+	return strings.Contains(lowerKey, "password") ||
+		strings.Contains(lowerKey, "passwd") ||
+		strings.Contains(lowerKey, "secret") ||
+		strings.Contains(lowerKey, "token") ||
+		strings.Contains(lowerKey, "seed") ||
+		strings.Contains(lowerKey, "authorization") ||
+		strings.Contains(lowerKey, "api_key") ||
+		strings.Contains(lowerKey, "auth")
 }
