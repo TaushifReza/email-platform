@@ -1,0 +1,127 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: platform
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          cache: false
+
+      - name: Run redflag checks
+        run: |
+          cd backend && bash ../tools/redflags.sh
+
+      - name: Run tests on root module
+        run: |
+          go test ./... -v || exit 1
+
+      - name: Run tests on backend module
+        run: |
+          cd backend && go test ./... -v || exit 1
+
+      - name: Run vet checks on root module
+        run: |
+          go vet ./...
+
+      - name: Run vet checks on backend module
+        run: |
+          cd backend && go vet ./...
+
+      - name: Run govulncheck on root module
+        run: |
+          govulncheck ./... || exit 1
+
+      - name: Run govulncheck on backend module
+        run: |
+          cd backend && govulncheck ./... || exit 1
+
+      - name: Run gosec on backend module
+        run: |
+          gosec -severity medium -confidence medium ./... || exit 1
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          cache: false
+
+      - name: Run golangci-lint on root module
+        run: |
+          golangci-lint run
+
+      - name: Run golangci-lint on backend module
+        run: |
+          cd backend && golangci-lint run
+
+  frontend:
+    needs: [test, lint]
+    if: hashFiles('frontend/package.json') != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install frontend dependencies
+        run: |
+          npm ci
+
+      - name: Run frontend typecheck
+        run: |
+          npm run typecheck
+
+      - name: Run frontend build
+        run: |
+          npm run build
+
+  secrets-scan:
+    needs: [test, lint]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          cache: false
+
+      - name: Install gitleaks
+        run: |
+          go install github.com/gitleaks/gitleaks/v8@latest
+
+      - name: Run gitleaks scan
+        run: |
+          gitleaks detect --source . --redact

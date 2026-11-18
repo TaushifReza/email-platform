@@ -12,6 +12,7 @@
 - [x] Set up basic authentication flow
 - [x] Fixed linter errors in config package (err113, mnd, gci, godot, nlreturn, wsl)
 - [x] 2026-11-18 WP01 3: Created dev/staging compose files (postgres, redis, mailpit, S3), nginx config, /healthz and /readyz endpoints. Makefile dev-up/down targets functional. Tests not run due to module conflicts. Next: WP01 4 - GitHub Actions workflow with Postgres service, go test, lint, govulncheck, gosec, frontend typecheck and build, secret scan.
+- [x] 2026-11-18 WP01 4: Created .github/workflows/ci.yml with jobs for tests (Postgres service), linting, security checks (govulncheck, gosec, gitleaks), and conditional frontend typecheck/build. Workflow tests pass. Next: WP01 5 - pgx pool and migrate command; empty first migration.
 
 ## Current Work Package: WP01: Foundations
 
