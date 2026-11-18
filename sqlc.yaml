@@ -1,0 +1,16 @@
+version: "2"
+packages:
+- name: "sqlc"
+  path: "backend/db/queries"
+  rules:
+    - id: "default"
+      exclude: false
+  schema: "backend/db/migrations/*.sql"
+  queries: "backend/db/queries/*.sql"
+  emit_db_logs: false
+  emit_interface: false
+  overrides:
+    - db_type: "null.Int64"
+      go_type: "int64"
+    - db_type: "null.String"
+      go_type: "string"

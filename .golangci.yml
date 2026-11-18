@@ -1,0 +1,19 @@
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+  staticcheck:
+    checks: ["all", "-SA1019"]
+  unused:
+    check-exported: false
+  misspell:
+    locale: US
+
+linters:
+  enable-all: true
+  disable:
+    - prealloc
+    - tenv # deprecated
+
+run:
+  tests: true
