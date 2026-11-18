@@ -1,0 +1,23 @@
+## 12. Template requirements
+
+- **TPL-01 [M·C]** Templates support **HTML and plain-text** bodies. The plain-text version is **generated automatically from the HTML**. (An editable override of the plain-text part is **S·A**.)
+- **TPL-02 [M·C]** A **rich-text editor** (bold, italics, links, lists, images, basic layout) plus a **raw HTML mode** for advanced users. Complex layouts may require pasting HTML. A drag-and-drop designer is out of scope.
+- **TPL-03 [M·C]** Variables use `{{variable_name}}` syntax. **Simple substitution only.** No conditionals, loops, filters or expressions in the MVP (**P**).
+- **TPL-04 [M·C]** The **subject** supports variables.
+- **TPL-05 [M·C]** Each template has a **variable settings** table: for each variable, an optional **default value** and a **required or optional** flag. Syntax stays `{{name}}`. Defaults live in the settings, not in the placeholder.
+- **TPL-06 [M·C]** **Versioning:** every save creates a new version. A campaign records the exact version used and freezes a snapshot at launch (BR-08).
+- **TPL-07 [M·C]** Templates are shared across the **whole organization** (not per department). Labels per ORG-08 may be applied. Templates can be **duplicated** and **archived** (archived templates cannot be chosen for new campaigns but remain readable, and do not affect existing campaigns).
+- **TPL-08 [M·C]** **Preview** renders the real template with the data of any chosen recipient row (first, any number, random) in a sandboxed view that does not execute scripts.
+- **TPL-09 [M·C]** **Test send:** sends one rendered email using a chosen real row to an address the user types, through the real provider. It counts against provider limits (BR-15). The subject is prefixed `[TEST]`. (Prefix A.)
+- **TPL-10 [M·C]** Inline images (embedded in the message body) are supported. They count toward the total email size limit and are stored within the organization's storage quota.
+- **TPL-11 [M·C]** **Template validation** checks before launch (each is a validation result, with severity):
+  - variables used in the template but not mapped to data and with no default: **error**,
+  - mapped columns not used by the template: **warning**,
+  - malformed or unsafe links (`javascript:`, `data:` and similar blocked): **error**,
+  - missing unsubscribe link in a marketing campaign: **error (block)**,
+  - missing physical postal address in a marketing campaign: **warning**,
+  - **spam-risk wording**: **advisory warning only, never blocking**,
+  - subject empty after substitution: **error**, very long subject: **warning**.
+- **TPL-12 [M·A]** Variable names: letters, digits and underscore, matched case-insensitively. Reserved system variables: `unsubscribe_url`.
+- **TPL-13 [M·A]** Template HTML is sanitized: scripts, event handlers, external active content and forms are removed or rejected.
+- **TPL-14 [M·C]** Email addresses in the data column mapped to **recipient address** are not template variables unless the user also maps them as variables (for example `{{email}}`).

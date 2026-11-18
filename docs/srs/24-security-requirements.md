@@ -1,0 +1,21 @@
+## 24. Security requirements
+
+- **SEC-01 [M·C]** **Authentication and authorization** per AUTH-01 to AUTH-05 and the permission matrix, enforced on the server for every operation.
+- **SEC-02 [M·C]** Mandatory two-factor authentication for Platform Admin, Owner and Admin (AUTH-02).
+- **SEC-03 [M·C]** **Tenant isolation:** every record belongs to an organization. Every query and file access is scoped to the caller's organization, **enforced centrally** and not left to individual endpoints. Files are separated per organization. **Automated tests that attempt cross-tenant access are a required acceptance criterion** (AC-SEC-01).
+- **SEC-04 [M·C]** **Credential protection** per PRV-05: encrypted, write-only, key outside the data store, rotatable, never logged.
+- **SEC-05 [M·C]** **Transport:** HTTPS for all web traffic, TLS or STARTTLS to providers (PRV-03).
+- **SEC-06 [M·C]** **Encryption at rest** for recipient data, attachments, credentials and backups.
+- **SEC-07 [M·C]** **SSRF protection** for user-supplied provider addresses (PRV-04).
+- **SEC-08 [M·C]** **Header injection** protection (PER-04, SND-11).
+- **SEC-09 [M·C]** **Template safety:** templates substitute variables only. They cannot execute code, read files or make network requests. `javascript:` and `data:` links are blocked. HTML is sanitized (TPL-13). Preview is sandboxed.
+- **SEC-10 [M·C]** **Formula injection:** cell values beginning with `=`, `+`, `-` or `@` are neutralized in every exported CSV or Excel file.
+- **SEC-11 [M·C]** **File and ZIP safety** per ATT-09 to ATT-11, with limits enforced server-side.
+- **SEC-12 [M·C]** **Rate limiting** on sign-in, uploads, test sends, password reset and the public unsubscribe endpoint.
+- **SEC-13 [M·C]** **Abuse prevention:** organization and campaign suspension, sending caps (switchable), sender declaration, aggregate abuse signals, no first-campaign review in the MVP (**P**).
+- **SEC-14 [M·C]** **Sender identity:** From address belongs to a verified provider and cannot be freely typed (PRV-06, PRV-07). SPF, DKIM, DMARC warnings (PRV-08, **S**).
+- **SEC-15 [M·C]** **Support access** controls (ADM-03). The Platform Admin MUST NOT freely browse tenant data.
+- **SEC-16 [M·C]** **Logging hygiene:** logs and error reports MUST NOT contain credentials or attachment contents, and SHOULD minimize personal data.
+- **SEC-17 [M·C]** **Public unsubscribe endpoint** controls (UNS-04) because it is the only public surface.
+- **SEC-18 [M·A]** Dependency and secret management follow current best practice. Backups are encrypted and access is restricted.
+- **SEC-19 [M·A]** Session tokens are invalidated on password change, role change and deactivation.

@@ -1,0 +1,11 @@
+# Replace @OWNER with the owner's GitHub username. These paths need the owner's review.
+/backend/internal/platform/crypto/        @TaushifReza
+/backend/internal/platform/db/            @TaushifReza
+/backend/internal/identity/               @TaushifReza
+/backend/internal/providers/dialer/       @TaushifReza
+/backend/internal/sending/                @TaushifReza
+/backend/internal/suppression/            @TaushifReza
+/backend/db/migrations/                   @TaushifReza
+/deploy/                                  @TaushifReza
+/AGENTS.md                                @TaushifReza
+/docs/srs/                                @TaushifReza

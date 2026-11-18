@@ -1,0 +1,17 @@
+{
+    "$schema": "https://opencode.ai/config.json",
+    "model": "ollama/qwen3-coder-64k:latest",
+    "agent": {
+        "plan": {
+            "model": "ollama/qwen3.8-132k:latest",
+            "temperature": 0.1
+        },
+        "build": {
+            "model": "ollama/qwen3-coder-64k:latest",
+            "temperature": 0.2
+        },
+        "explore": {
+            "model": "ollama/gemma4-64k:latest"
+        }
+    }
+}
