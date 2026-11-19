@@ -13,6 +13,7 @@
 - [x] Fixed linter errors in config package (err113, mnd, gci, godot, nlreturn, wsl)
 - [x] 2026-11-18 WP01 3: Created dev/staging compose files (postgres, redis, mailpit, S3), nginx config, /healthz and /readyz endpoints. Makefile dev-up/down targets functional. Tests not run due to module conflicts. Next: WP01 4 - GitHub Actions workflow with Postgres service, go test, lint, govulncheck, gosec, frontend typecheck and build, secret scan.
 - [x] 2026-11-18 WP01 4: Created .github/workflows/ci.yml with jobs for tests (Postgres service), linting, security checks (govulncheck, gosec, gitleaks), and conditional frontend typecheck/build. Workflow tests pass. Next: WP01 5 - pgx pool and migrate command; empty first migration.
+- [x] 2026-11-19 WP01 5: Implemented pgx connection pool with proper settings (MaxConns=10, MinConns=1, MaxConnLifetime=30m), goose migrate command that runs migrations against PostgreSQL, and created first empty migration file. Added tests for pool connectivity and migration idempotency which pass with DATABASE_URL set. Next: WP01 6 - OpenAPI scaffold with Go server stubs and TypeScript client.
 
 ## Current Work Package: WP01: Foundations
 

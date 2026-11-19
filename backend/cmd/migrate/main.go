@@ -1,33 +1,28 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 
 	"github.com/TaushifReza/email-platform/backend/internal/platform/config"
-	"github.com/TaushifReza/email-platform/backend/internal/platform/logging"
+	"github.com/TaushifReza/email-platform/backend/internal/platform/db"
+	"github.com/pressly/goose/v3"
 )
 
 func main() {
+	ctx := context.Background()
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatal("Failed to load config:", err)
 	}
 
-	logger, err := logging.New(cfg.LogLevel, os.Stderr)
-	if err != nil {
-		log.Fatal("Failed to create logger:", err)
+	// Run migrations
+	goose.SetBasePath("backend/db/migrations")
+	if err = goose.Up(ctx, cfg.DatabaseDSN, "backend/db/migrations"); err != nil {
+		log.Fatal("Failed to run migrations:", err)
 	}
 
-	logger.Info("starting migrate service",
-		// Test that redaction works with log output
-		logField("password", "secret123"),
-		logField("email", "test@example.com"),
-	)
-
-	logger.Info("Migrate service started successfully")
-}
-
-func logField(key, value string) interface{} {
-	return nil // Placeholder for now - will be handled by redact logic in core
+	log.Println("Migrations completed successfully")
 }
