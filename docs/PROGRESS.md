@@ -34,3 +34,6 @@ This work package covers:
 - Add comprehensive audit logging
 - Create dashboard UI components
 - Set up notification system
+
+- [x] 2026-11-19 WP01 7: Created frontend shell with Next.js static export, Tailwind, shadcn/ui components, API client placeholder and CSP generation spike. Directory structure established with app/layout.tsx, app/page.tsx, app/login/page.tsx, component libraries (button, input, card, label), UI utilities, and lib/health.ts for backend health checking.
+- [x] 2026-11-19 WP01 7: Frontend shell implementation complete. Created Next.js 15 static export with Tailwind CSS, shadcn/ui components, placeholder login, API client health check and CSP spike framework. Verified frontend build structure works. All tests passed. Next: WP01 8 - tools/fakesmtp: Go SMTP test server with scripted behaviors and HTTP API.
