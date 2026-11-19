@@ -15,6 +15,7 @@ lint:
 
 gen:
 	sqlc generate
+	go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen --generate types,chi-server --output backend/api/openapi.gen.go --package api api/openapi.yaml
 
 dev-up:
 	docker compose -f infra/dev/docker-compose.yml up -d --build

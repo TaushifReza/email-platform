@@ -10,6 +10,7 @@ import (
 	"github.com/TaushifReza/email-platform/backend/internal/platform/config"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/health"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/logging"
+	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	redis "github.com/go-redis/redis/v8"
 )
@@ -40,13 +41,24 @@ func main() {
 
 	// Create health server
 	h := health.New(dbChecker, redisClient)
-	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", h.Healthz)
-	mux.HandleFunc("/readyz", h.Readyz)
+	
+	// Set gin to release mode for production
+	gin.SetMode(gin.ReleaseMode)
+	
+	// Create gin router
+	router := gin.New()
+	
+	// Health endpoints
+	router.GET("/healthz", func(c *gin.Context) {
+		h.Healthz(c.Writer, c.Request)
+	})
+	router.GET("/readyz", func(c *gin.Context) {
+		h.Readyz(c.Writer, c.Request)
+	})
 
 	srv := &http.Server{
 		Addr:         cfg.ListenAddr,
-		Handler:      mux,
+		Handler:      router,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}

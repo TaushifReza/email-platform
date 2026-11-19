@@ -1,0 +1,75 @@
+openapi: 3.0.3
+info:
+  title: Email Platform API
+  version: 0.1.0
+  description: API for email automation platform
+servers:
+  - url: /
+paths:
+  /healthz:
+    get:
+      summary: Health check endpoint
+      description: Returns status of the service
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /readyz:
+    get:
+      summary: Readiness check endpoint
+      description: Returns status of service readiness including database connection 
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadyResponse'
+        '503':
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: ok
+    ReadyResponse:
+      type: object
+      required:
+        - status
+        - checks
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+          example: ok
+        checks:
+          type: object
+          properties:
+            db:
+              type: string
+              example: ok
+            redis:
+              type: string
+              example: ok
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
