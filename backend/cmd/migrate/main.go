@@ -25,7 +25,7 @@ func run() error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	sqlDB, err := sql.Open("pgx", cfg.DatabaseURL)
+	sqlDB, err := sql.Open("pgx", cfg.MigrationDatabaseURL)
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}

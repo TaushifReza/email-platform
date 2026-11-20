@@ -3,3 +3,138 @@
 //   sqlc v1.31.1
 
 package sqlc
+
+import (
+	"database/sql"
+	"encoding/json"
+	"time"
+)
+
+type AuditLog struct {
+	ID             string
+	OrganizationID sql.NullString
+	ActorType      string
+	ActorID        sql.NullString
+	ActorRole      sql.NullString
+	Action         string
+	TargetType     sql.NullString
+	TargetID       sql.NullString
+	Outcome        string
+	SourceIp       sql.NullString
+	Client         sql.NullString
+	Details        json.RawMessage
+	CreatedAt      time.Time
+}
+
+type AuthToken struct {
+	ID             string
+	OrganizationID string
+	UserID         string
+	Purpose        string
+	TokenHash      []byte
+	ExpiresAt      time.Time
+	UsedAt         sql.NullTime
+	CreatedAt      time.Time
+}
+
+type Invitation struct {
+	ID              string
+	OrganizationID  string
+	Email           string
+	EmailNormalized sql.NullString
+	Role            string
+	InvitedByUserID string
+	AcceptedUserID  sql.NullString
+	TokenHash       []byte
+	ExpiresAt       time.Time
+	AcceptedAt      sql.NullTime
+	RevokedAt       sql.NullTime
+	CreatedAt       time.Time
+}
+
+type Operator struct {
+	ID                 string
+	Email              string
+	EmailNormalized    sql.NullString
+	PasswordHash       string
+	TotpSeedEncrypted  []byte
+	TotpKeyID          sql.NullString
+	TotpEnrolledAt     sql.NullTime
+	TotpLastUsedStep   sql.NullInt64
+	RecoveryCodeHashes []string
+	Status             string
+	FailedLoginCount   int32
+	LockedUntil        sql.NullTime
+	LastLoginAt        sql.NullTime
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type OperatorSession struct {
+	ID                string
+	OperatorID        string
+	TokenHash         []byte
+	MfaVerified       bool
+	Ip                sql.NullString
+	UserAgent         sql.NullString
+	CreatedAt         time.Time
+	LastSeenAt        time.Time
+	IdleExpiresAt     time.Time
+	AbsoluteExpiresAt time.Time
+	RevokedAt         sql.NullTime
+}
+
+type Organization struct {
+	ID                   string
+	Name                 string
+	LogoObjectKey        sql.NullString
+	DefaultSenderName    string
+	DefaultReplyTo       sql.NullString
+	TimeZone             string
+	Status               string
+	RequireApproval      bool
+	RetentionDays        int32
+	StorageQuotaBytes    int64
+	CapsEnabled          bool
+	DailyEmailCap        sql.NullInt32
+	CampaignRecipientCap sql.NullInt32
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+}
+
+type Session struct {
+	ID                string
+	OrganizationID    string
+	UserID            string
+	TokenHash         []byte
+	MfaVerified       bool
+	Ip                sql.NullString
+	UserAgent         sql.NullString
+	CreatedAt         time.Time
+	LastSeenAt        time.Time
+	IdleExpiresAt     time.Time
+	AbsoluteExpiresAt time.Time
+	RevokedAt         sql.NullTime
+}
+
+type User struct {
+	ID                 string
+	OrganizationID     string
+	Email              string
+	EmailNormalized    sql.NullString
+	DisplayName        string
+	Role               string
+	Status             string
+	PasswordHash       sql.NullString
+	PasswordChangedAt  sql.NullTime
+	TotpSeedEncrypted  []byte
+	TotpKeyID          sql.NullString
+	TotpEnrolledAt     sql.NullTime
+	TotpLastUsedStep   sql.NullInt64
+	RecoveryCodeHashes []string
+	FailedLoginCount   int32
+	LockedUntil        sql.NullTime
+	LastLoginAt        sql.NullTime
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}

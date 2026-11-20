@@ -47,11 +47,31 @@ belong to later work packages and were not implemented here.
 
 ### Next
 
-- Commit WP01 and open the review.
-- Create the WP02 branch from the green WP01 branch.
+- WP02 sub-task 2: `WithOrg` helper plus the catalog guard test.
+- Then WP02 sub-task 3: password hashing, login, lockout and rate limits.
 
 ### Handoff
 
+- 2026-11-20 WP02.1 identity/tenancy schema: added goose migrations 0002-0006
+  for `email_owner`/`email_app`/`email_system`, organizations, operators, users,
+  sessions, operator_sessions, invitations, auth_tokens and a partitioned
+  append-only audit_log; forced RLS, composite FKs, app/system grants and the
+  `app.org_id` GUC. Split runtime and migration DSNs (`DATABASE_URL` vs
+  `MIGRATION_DATABASE_URL`), added an idempotent dev postgres bootstrap service
+  so existing volumes get LOGIN roles, and mapped sqlc UUID/inet types to stdlib
+  to avoid new dependencies. Tests cover AC-SEC-01, AC-AUD-01, ORG-05/06/09/10
+  and schema/role checks. `make test-module M=platform` and `make ci` pass.
+  Deviation: `operator_sessions` is separate from `sessions` so every tenant
+  table keeps `organization_id NOT NULL`. Open: pre-auth login lookup under
+  forced RLS is OQ-12. Full `make dev-up` was not run because host port 8080 is
+  occupied by an unrelated container; migrate/api/worker were verified directly.
+- 2026-11-20 WP02.1 handoff: schema migrations 0002-0006, forced RLS, composite
+  FKs, role grants, DSN split and dev bootstrap are complete.
+  `make test-module M=platform`, `go test -race ./backend/internal/platform/db/...`,
+  `make lint` and `make ci` pass; migrate/api/worker start on `email_app` and RLS
+  fails closed without `app.org_id`. Next: WP02.2 `WithOrg` helper and catalog
+  guard test. Unfinished: OQ-12 pre-auth login lookup; full `make dev-up` blocked
+  by host port 8080; no commit.
 - 2026-11-19 WP01 remediation: started on `wp01-foundations`. Consolidated the Go
   backend and `tools/fakesmtp` into the root module, removed the duplicate root
   `internal/` scaffold, replaced the Makefile with real `test`, `lint`, `gen`,

@@ -1,5 +1,6 @@
 x-app-environment: &app-environment
-  DATABASE_URL: postgres://postgres:password@postgres:5432/email_platform_dev?sslmode=disable
+  DATABASE_URL: postgres://email_app:app-dev@postgres:5432/email_platform_dev?sslmode=disable
+  MIGRATION_DATABASE_URL: postgres://postgres:password@postgres:5432/email_platform_dev?sslmode=disable
   REDIS_URL: redis://redis:6379
   STORAGE_ENDPOINT: http://rustfs:9000
   STORAGE_BUCKET: email-platform
@@ -24,6 +25,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d email_platform_dev"]
       interval: 3s
@@ -84,6 +86,22 @@ services:
     networks:
       - backend
 
+  postgres-bootstrap:
+    image: postgres:16
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: password
+    volumes:
+      - ./postgres-init:/postgres-init:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - "psql -h postgres -U postgres -d email_platform_dev -f /postgres-init/01-roles.sql"
+    restart: "no"
+    networks:
+      - backend
+
   migrate:
     build:
       context: ../..
@@ -93,6 +111,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      postgres-bootstrap:
+        condition: service_completed_successfully
     environment: *app-environment
     restart: "no"
     networks:

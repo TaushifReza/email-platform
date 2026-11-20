@@ -53,6 +53,39 @@ func TestLoadFileSecretsTakePrecedence(t *testing.T) {
 	assert.Equal(t, "file-master-key", string(cfg.MasterKey))
 }
 
+func TestLoadMigrationDatabaseURLFallsBackToDatabaseURL(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://app@localhost:5432/testdb")
+	t.Setenv("MIGRATION_DATABASE_URL", "")
+	t.Setenv("MIGRATION_DATABASE_URL_FILE", "")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, cfg.DatabaseURL, cfg.MigrationDatabaseURL)
+}
+
+func TestLoadMigrationDatabaseURLExplicit(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://app@localhost:5432/testdb")
+	t.Setenv("MIGRATION_DATABASE_URL", "postgres://owner@localhost:5432/testdb")
+	t.Setenv("MIGRATION_DATABASE_URL_FILE", "")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, "postgres://owner@localhost:5432/testdb", cfg.MigrationDatabaseURL)
+}
+
+func TestLoadMigrationDatabaseURLFileTakesPrecedence(t *testing.T) {
+	tmpDir := t.TempDir()
+	migrationURLFile := writeSecret(t, tmpDir, "migration_url", "postgres://file-owner@localhost:5432/testdb")
+
+	t.Setenv("DATABASE_URL", "postgres://app@localhost:5432/testdb")
+	t.Setenv("MIGRATION_DATABASE_URL", "postgres://env-owner@localhost:5432/testdb")
+	t.Setenv("MIGRATION_DATABASE_URL_FILE", migrationURLFile)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, "postgres://file-owner@localhost:5432/testdb", cfg.MigrationDatabaseURL)
+}
+
 func TestLoadRequiresDatabaseURL(t *testing.T) {
 	t.Setenv("DATABASE_URL", "")
 	t.Setenv("DATABASE_URL_FILE", "")

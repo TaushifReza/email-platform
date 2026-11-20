@@ -13,3 +13,4 @@
 | OQ-09 | Legal documents (ToS, privacy notice, data processing statement) | Post-MVP, before commercialization |
 | OQ-10 | Default caps for commercial tenants | Placeholder 500 per day, 1,000 per campaign |
 | OQ-11 | Local model throughput and rework rate | Measure after WP01 |
+| OQ-12 | How should the pre-auth login lookup find a user by email when forced RLS needs `app.org_id` before authentication? | Open. Recommended: a `SECURITY DEFINER` function owned by `email_system`, granted to `email_app`, returning only id, organization, hash, status and role |
