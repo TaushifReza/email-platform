@@ -1,0 +1,17 @@
+.git
+.agents
+.github
+docs
+frontend/node_modules
+frontend/.next
+frontend/out
+frontend/*.tsbuildinfo
+tmp
+*.log
+*.test
+*.out
+secrets
+.env
+.env.*
+!.env.example
+docker-compose.override.yml
