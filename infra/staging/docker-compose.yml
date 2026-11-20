@@ -1,4 +1,17 @@
-version: "3.8"
+x-app-environment: &app-environment
+  DATABASE_URL: postgres://postgres:password@postgres:5432/email_platform_staging?sslmode=disable
+  REDIS_URL: redis://redis:6379
+  STORAGE_ENDPOINT: http://rustfs:9000
+  STORAGE_BUCKET: email-platform
+  STORAGE_ACCESS_KEY: test-access-key
+  STORAGE_SECRET_KEY: test-secret-key
+  MASTER_KEY: dev-only-master-key-not-for-production
+  SMTP_HOST: mailpit
+  SMTP_PORT: "1025"
+  SMTP_USERNAME: ""
+  SMTP_PASSWORD: ""
+  EMAIL_FROM: noreply@example.com
+  LOG_LEVEL: info
 
 services:
   postgres:
@@ -7,13 +20,27 @@ services:
       POSTGRES_DB: email_platform_staging
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d email_platform_staging"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
     networks:
       - backend
 
   redis:
     image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
     networks:
       - backend
 
@@ -28,71 +55,118 @@ services:
   rustfs:
     image: rustfs/rustfs:latest
     environment:
-      RUSTFS_ENDPOINT: http://rustfs:3000
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ACCESS_KEY: test-access-key
+      RUSTFS_SECRET_KEY: test-secret-key
+      RUSTFS_CONSOLE_ENABLE: "true"
     ports:
-      - "3000:3000"
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - rustfs_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/health/ready"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks:
+      - backend
+
+  storage-init:
+    image: rustfs/rustfs:latest
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - "/usr/bin/rc alias set local http://rustfs:9000 test-access-key test-secret-key && /usr/bin/rc mb --ignore-existing local/email-platform"
+    restart: "no"
     networks:
       - backend
 
   migrate:
     build:
-      context: .
-      dockerfile: ./backend/Dockerfile.migrate
+      context: ../..
+      dockerfile: backend/Dockerfile
+      args:
+        SERVICE: migrate
     depends_on:
-      - postgres
-    environment:
-      DATABASE_URL: postgres://postgres:password@postgres:5432/email_platform_staging
-      STORAGE_ENDPOINT: http://rustfs:3000
-      STORAGE_ACCESS_KEY: test-access-key
-      STORAGE_SECRET_KEY: test-secret-key
+      postgres:
+        condition: service_healthy
+    environment: *app-environment
+    restart: "no"
     networks:
       - backend
 
   api:
     build:
-      context: .
-      dockerfile: ./backend/Dockerfile.api
+      context: ../..
+      dockerfile: backend/Dockerfile
+      args:
+        SERVICE: api
     depends_on:
-      - postgres
-      - redis
-      - migrate
-    environment:
-      DATABASE_URL: postgres://postgres:password@postgres:5432/email_platform_staging
-      REDIS_URL: redis://redis:6379
-      STORAGE_ENDPOINT: http://rustfs:3000
-      STORAGE_ACCESS_KEY: test-access-key
-      STORAGE_SECRET_KEY: test-secret-key
-      SMTP_HOST: mailpit
-      SMTP_PORT: 1025
-      SMTP_USERNAME: ""
-      SMTP_PASSWORD: ""
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      storage-init:
+        condition: service_completed_successfully
+    environment: *app-environment
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/healthz >/dev/null"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
     networks:
       - backend
 
   worker:
     build:
-      context: .
-      dockerfile: ./backend/Dockerfile.worker
+      context: ../..
+      dockerfile: backend/Dockerfile
+      args:
+        SERVICE: worker
     depends_on:
-      - postgres
-      - redis
-      - migrate
-    environment:
-      DATABASE_URL: postgres://postgres:password@postgres:5432/email_platform_staging
-      REDIS_URL: redis://redis:6379
-      STORAGE_ENDPOINT: http://rustfs:3000
-      STORAGE_ACCESS_KEY: test-access-key
-      STORAGE_SECRET_KEY: test-secret-key
-      SMTP_HOST: mailpit
-      SMTP_PORT: 1025
-      SMTP_USERNAME: ""
-      SMTP_PASSWORD: ""
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    environment: *app-environment
+    restart: unless-stopped
     networks:
       - backend
 
+  web:
+    build:
+      context: ../..
+      dockerfile: frontend/Dockerfile
+    restart: unless-stopped
+    networks:
+      - backend
+
+  nginx:
+    image: nginx:alpine
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_started
+    ports:
+      - "8080:80"
+    volumes:
+      - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    restart: unless-stopped
+    networks:
+      - backend
+      - edge
+
 volumes:
   postgres_data:
+  rustfs_data:
 
 networks:
   backend:
+    driver: bridge
+  edge:
     driver: bridge

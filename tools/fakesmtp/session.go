@@ -1,237 +1,249 @@
 package fakesmtp
 
 import (
-	"bufio"
+	"bytes"
 	"crypto/tls"
-	"fmt"
+	"io"
 	"net"
+	"net/mail"
+	"net/textproto"
 	"strings"
 	"time"
 )
 
-// session handles a single SMTP connection
 type session struct {
-	conn     net.Conn
-	script   *Script
-	server   *Server
-	cert     *tls.Certificate
-	from     string
-	to       []string
-	data     strings.Builder
+	server *Server
+	conn   net.Conn
+	tp     *textproto.Conn
+	from   string
+	to     []string
+	tls    bool
 }
 
-// run starts the SMTP session
+func newSession(server *Server, conn net.Conn) *session {
+	return &session{
+		server: server,
+		conn:   conn,
+		tp:     textproto.NewConn(conn),
+	}
+}
+
 func (s *session) run() {
-	defer s.conn.Close()
-	
-	// Send greeting
-	s.sendResponse(220, "fake Smtp server ready")
-	
-	// Process commands
-	scanner := bufio.NewScanner(s.conn)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-		
-		cmd := strings.ToUpper(line)
-		if strings.HasPrefix(cmd, "EHLO ") || strings.HasPrefix(cmd, "HELO ") {
-			s.handleEhlo(cmd)
-		} else if strings.HasPrefix(cmd, "MAIL FROM:") {
-			s.handleMailFrom(cmd)
-		} else if strings.HasPrefix(cmd, "RCPT TO:") {
-			s.handleRcptTo(cmd)
-		} else if cmd == "DATA" {
-			s.handleData()
-		} else if cmd == "QUIT" {
-			s.handleQuit()
+	s.reply("connect", 220, "fake SMTP server ready")
+
+	for {
+		line, err := s.tp.ReadLine()
+		if err != nil {
 			return
-		} else if cmd == "RSET" {
-			s.handleRset()
-		} else {
-			s.sendResponse(500, "Command not recognized")
 		}
-		
-		if s.conn.RemoteAddr() == nil {
-			break // connection closed
+
+		command, argument := splitCommand(line)
+		switch command {
+		case "EHLO":
+			s.handleEHLO(argument)
+		case "HELO":
+			s.handleHELO(argument)
+		case "MAIL":
+			s.handleMail(argument)
+		case "RCPT":
+			s.handleRcpt(argument)
+		case "DATA":
+			s.handleData()
+		case "RSET":
+			s.reset()
+			s.reply("rset", 250, "OK")
+		case "NOOP":
+			s.reply("noop", 250, "OK")
+		case "STARTTLS":
+			s.handleStartTLS()
+		case "AUTH":
+			s.reply("auth", 235, "2.7.0 Authentication successful")
+		case "QUIT":
+			s.reply("quit", 221, "Bye")
+			return
+		default:
+			s.reply("", 500, "Command not recognized")
 		}
 	}
 }
 
-func (s *session) handleEhlo(cmd string) {
-	var response string
-	
-	// Check if TLS is required or supported
-	if s.server.cert != nil {
-		response = "250-OK\r\n250-STARTTLS\r\n250 OK"
-	} else {
-		response = "250 OK"
-	}
-	
-	s.sendResponseString(response)
-}
-
-func (s *session) handleMailFrom(cmd string) {
-	// Parse the FROM parameter
-	from := strings.TrimPrefix(cmd, "MAIL FROM:")
-	from = strings.TrimSpace(from)
-	
-	// Apply behavior rules
-	replyCode, replyText := s.getBehaviorReply("mail", from, "")
-	
-	if replyCode != 250 {
-		s.sendResponse(replyCode, replyText)
+func (s *session) handleEHLO(_ string) {
+	behavior, hasBehavior := s.server.script.behavior("ehlo")
+	if hasBehavior && behavior.ReplyCode != 0 && behavior.ReplyCode != 250 {
+		s.reply("ehlo", behavior.ReplyCode, behavior.ReplyText)
 		return
 	}
-	
-	s.from = strings.TrimPrefix(strings.TrimSuffix(from, ">"), "<")
-	s.sendResponse(250, "OK")
+
+	s.sleep("ehlo")
+	text := "fakesmtp"
+	if hasBehavior && behavior.ReplyText != "" {
+		text = behavior.ReplyText
+	}
+
+	s.writeLine("250-%s", text)
+	if s.server.script.TLS == TLSStartTLS && !s.tls {
+		s.writeLine("250-STARTTLS")
+	}
+	s.writeLine("250 AUTH PLAIN LOGIN")
 }
 
-func (s *session) handleRcptTo(cmd string) {
-	to := strings.TrimPrefix(cmd, "RCPT TO:")
-	to = strings.TrimSpace(to)
-	
-	// Apply behavior rules
-	replyCode, replyText := s.getBehaviorReply("rcpt", "", to)
-	
-	if replyCode != 250 {
-		s.sendResponse(replyCode, replyText)
+func (s *session) handleHELO(_ string) {
+	s.reset()
+	s.reply("helo", 250, "fakesmtp")
+}
+
+func (s *session) handleMail(argument string) {
+	if !strings.HasPrefix(strings.ToUpper(argument), "FROM:") {
+		s.reply("mail", 501, "Syntax: MAIL FROM:<address>")
 		return
 	}
-	
-	s.to = append(s.to, strings.TrimPrefix(strings.TrimSuffix(to, ">"), "<"))
-	s.sendResponse(250, "OK")
+
+	behavior, hasBehavior := s.server.script.behavior("mail")
+	if hasBehavior && behavior.ReplyCode != 0 && behavior.ReplyCode != 250 {
+		s.reply("mail", behavior.ReplyCode, behavior.ReplyText)
+		return
+	}
+
+	s.from = parseAddress(argument[len("FROM:"):])
+	s.reply("mail", 250, "OK")
+}
+
+func (s *session) handleRcpt(argument string) {
+	if !strings.HasPrefix(strings.ToUpper(argument), "TO:") {
+		s.reply("rcpt", 501, "Syntax: RCPT TO:<address>")
+		return
+	}
+
+	behavior, hasBehavior := s.server.script.behavior("rcpt")
+	if hasBehavior && behavior.ReplyCode != 0 && behavior.ReplyCode != 250 {
+		s.reply("rcpt", behavior.ReplyCode, behavior.ReplyText)
+		return
+	}
+
+	s.to = append(s.to, parseAddress(argument[len("TO:"):]))
+	s.reply("rcpt", 250, "OK")
 }
 
 func (s *session) handleData() {
-	// Apply behavior rules before accepting DATA
-	replyCode, replyText := s.getBehaviorReply("data", "", "")
-	
-	if replyCode != 250 {
-		s.sendResponse(replyCode, replyText)
+	behavior, hasBehavior := s.server.script.behavior("data")
+	if hasBehavior && behavior.ReplyCode != 0 && behavior.ReplyCode != 250 {
+		s.reply("data", behavior.ReplyCode, behavior.ReplyText)
 		return
 	}
-	
-	// Send 354 - Start mail input
-	s.sendResponse(354, "End data with <CR><LF>.<CR><LF>")
-	
-	// Read the message content
-	var message strings.Builder
-	for {
-		line := ""
-		if err := s.conn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
-			break
-		}
-		
-		scanner := bufio.NewScanner(s.conn)
-		if scanner.Scan() {
-			line = scanner.Text()
-		} else {
-			break
-		}
-		
-		if line == "." {
-			break
-		}
-		
-		message.WriteString(line)
-		message.WriteString("\r\n")
-		s.data.WriteString(line)
-		s.data.WriteString("\r\n")
+
+	s.sleep("data")
+	s.writeLine("354 End data with <CR><LF>.<CR><LF>")
+
+	raw, err := io.ReadAll(s.tp.DotReader())
+	if err != nil {
+		return
 	}
-	
-	// Send 250 - Message accepted
-	s.sendResponse(250, "OK")
-	
-	// Store the message if not dropped
-	if !s.willDrop() {
-		s.storeMessage()
+
+	if s.server.script.dropAfterData() {
+		s.writeLine("250 OK")
+		return
 	}
+
+	s.server.storeMessage(s.from, append([]string(nil), s.to...), raw)
+	s.reset()
+	s.writeLine("250 OK")
 }
 
-func (s *session) handleQuit() {
-	s.sendResponse(221, "Goodbye")
-}
-
-func (s *session) handleRset() {
-	// Reset session state
-	s.from = ""
-	s.to = []string{}
-	s.data.Reset()
-	s.sendResponse(250, "OK")
-}
-
-// getBehaviorReply gets the response for a given command
-func (s *session) getBehaviorReply(command, from, to string) (int, string) {
-	// Find matching behavior in script
-	for _, behavior := range s.script.Behaviors {
-		if behavior.Command == command || behavior.Command == "all" {
-			return behavior.ReplyCode, behavior.ReplyText
-		}
+func (s *session) handleStartTLS() {
+	if s.server.script.TLS != TLSStartTLS || s.tls || s.server.cert == nil {
+		s.reply("starttls", 502, "Command not implemented")
+		return
 	}
-	
-	// Default fallback - accept all commands
-	return 250, "OK"
-}
 
-// willDrop checks if the current message should be dropped after DATA
-func (s *session) willDrop() bool {
-	for _, behavior := range s.script.Behaviors {
-		if behavior.Command == "data" || behavior.Command == "all" {
-			if behavior.DropAfterData {
-				return true
-			}
-		}
+	s.writeLine("220 Ready to start TLS")
+
+	tlsConn := tls.Server(s.conn, &tls.Config{
+		Certificates: []tls.Certificate{*s.server.cert},
+		MinVersion:   tls.VersionTLS12,
+	})
+	if err := tlsConn.Handshake(); err != nil {
+		return
 	}
-	return false
-}
 
-// storeMessage stores the received message
-func (s *session) storeMessage() {
-	// Simple UUID generation for now
-	messageID := fmt.Sprintf("msg_%d", time.Now().UnixNano())
-	
-	msg := &Message{
-		ID:         messageID,
-		From:       s.from,
-		To:         s.to,
-		Size:       len(s.data.String()),
-		ReceivedAt: time.Now().Unix(),
-		Body:       s.data.String(),
-	}
-	
-	// Store the message
-	s.server.mu.Lock()
-	s.server.messages = append(s.server.messages, msg)
-	s.server.mu.Unlock()
-}
-
-// sendResponse sends an SMTP response to client
-func (s *session) sendResponse(code int, text string) {
-	response := fmt.Sprintf("%d %s\r\n", code, text)
-	s.sendResponseString(response)
-}
-
-// sendResponseString sends a raw response string to client
-func (s *session) sendResponseString(response string) {
-	// Apply delay if needed
-	for _, behavior := range s.script.Behaviors {
-		if behavior.Command == "all" || behavior.Command == "data" {
-			if behavior.DelayMS > 0 {
-				time.Sleep(time.Duration(behavior.DelayMS) * time.Millisecond)
-			}
-			break
-		}
-	}
-	
-	s.conn.Write([]byte(response))
-}
-
-// setTLS sets up TLS for the session if needed
-func (s *session) setTLS(tlsConfig *tls.Config) error {
-	tlsConn := tls.Server(s.conn, tlsConfig)
 	s.conn = tlsConn
-	return nil
+	s.tp = textproto.NewConn(tlsConn)
+	s.tls = true
+	s.reset()
+}
+
+func (s *session) reset() {
+	s.from = ""
+	s.to = nil
+}
+
+func (s *session) reply(command string, defaultCode int, defaultText string) {
+	code := defaultCode
+	text := defaultText
+
+	if behavior, ok := s.server.script.behavior(command); ok {
+		if behavior.ReplyCode != 0 {
+			code = behavior.ReplyCode
+		}
+		if behavior.ReplyText != "" {
+			text = behavior.ReplyText
+		}
+	}
+
+	s.sleep(command)
+	s.writeLine("%d %s", code, text)
+}
+
+func (s *session) writeLine(format string, args ...any) {
+	_ = s.tp.PrintfLine(format, args...) //nolint:errcheck // The connection closes when the client disconnects.
+}
+
+func (s *session) sleep(command string) {
+	if delay := s.server.script.delay(command); delay > 0 {
+		time.Sleep(delay)
+	}
+}
+
+func splitCommand(line string) (string, string) {
+	line = strings.TrimSpace(line)
+	index := strings.IndexAny(line, " \t")
+	if index == -1 {
+		return strings.ToUpper(line), ""
+	}
+	return strings.ToUpper(line[:index]), strings.TrimSpace(line[index+1:])
+}
+
+func parseAddress(value string) string {
+	value = strings.TrimSpace(value)
+	if index := strings.IndexAny(value, " \t"); index != -1 {
+		value = value[:index]
+	}
+	return strings.Trim(value, "<>")
+}
+
+func parseMessage(from string, to []string, raw []byte) *Message {
+	message := &Message{
+		From:       from,
+		To:         to,
+		Headers:    map[string][]string{},
+		Body:       string(raw),
+		Raw:        string(raw),
+		Size:       len(raw),
+		ReceivedAt: time.Now().Unix(),
+	}
+
+	parsed, err := mail.ReadMessage(bytes.NewReader(raw))
+	if err != nil {
+		return message
+	}
+
+	for key, values := range parsed.Header {
+		message.Headers[key] = append([]string(nil), values...)
+	}
+	message.Subject = parsed.Header.Get("Subject")
+
+	if body, err := io.ReadAll(parsed.Body); err == nil {
+		message.Body = string(body)
+	}
+
+	return message
 }

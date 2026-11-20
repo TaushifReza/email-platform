@@ -10,6 +10,7 @@ report() { # title, matches
 }
 
 go_files() { find backend -name '*.go' -not -name '*_test.go' -not -path '*/gen/*' -not -path '*/sqlc/*' -not -path '*/db/queries/*' 2>/dev/null; }
+frontend_files() { find frontend/app frontend/components frontend/lib -type f \( -name '*.ts' -o -name '*.tsx' \) 2>/dev/null; }
 
 report "InsecureSkipVerify (must never exist)" \
   "$(go_files | xargs grep -n 'InsecureSkipVerify' 2>/dev/null | head -20)"
@@ -30,12 +31,12 @@ report "Tests skipped" \
   "$(find backend -name '*_test.go' 2>/dev/null | xargs grep -nE 't\.Skip(Now)?\(' 2>/dev/null | head -20)"
 
 report "Forbidden words in user-facing code (delivered / opened / bounced)" \
-  "$( (find frontend/src -type f \( -name '*.ts' -o -name '*.tsx' \) 2>/dev/null | xargs grep -niE '\b(delivered|bounced|opened)\b' 2>/dev/null; go_files | xargs grep -niE '"[^"]*\b(delivered|bounced)\b[^"]*"' 2>/dev/null) | head -20)"
+  "$( (frontend_files | xargs grep -niE '\b(delivered|bounced|opened)\b' 2>/dev/null; go_files | xargs grep -niE '"[^"]*\b(delivered|bounced)\b[^"]*"' 2>/dev/null) | head -20)"
 
 report "Deleted test files in uncommitted changes" \
   "$(git status --short 2>/dev/null | grep -E '^( D|D ).*_test\.' | head -20)"
 
-big=$( (find backend frontend/src -type f \( -name '*.go' -o -name '*.ts' -o -name '*.tsx' \) 2>/dev/null | xargs wc -l 2>/dev/null) | awk '$1>400 && $2!="total"{print $1" lines: "$2}' | head -20)
+big=$( (find backend -type f -name '*.go' 2>/dev/null; frontend_files) | xargs wc -l 2>/dev/null | awk '$1>400 && $2!="total"{print $1" lines: "$2}' | head -20)
 report "Files over 400 lines (agents should keep files small)" "$big"
 
 if [ "$found" -eq 0 ]; then echo "No red flags found."; else echo "Red flags found. Ask the agent to fix them, or look yourself."; exit 1; fi

@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/TaushifReza/email-platform/backend/internal/platform/config"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/logging"
@@ -11,23 +14,21 @@ import (
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatal("Failed to load config:", err)
+		log.Fatal("Failed to load config: ", err)
 	}
 
 	logger, err := logging.New(cfg.LogLevel, os.Stderr)
 	if err != nil {
-		log.Fatal("Failed to create logger:", err)
+		log.Fatal("Failed to create logger: ", err)
 	}
+	defer func() {
+		_ = logger.Sync() //nolint:errcheck // Best-effort flush on shutdown.
+	}()
 
-	logger.Info("starting worker service",
-		// Test that redaction works with log output
-		logField("password", "secret123"),
-		logField("email", "test@example.com"),
-	)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
-	logger.Info("Worker service started successfully")
-}
-
-func logField(key, value string) interface{} {
-	return nil // Placeholder for now - will be handled by redact logic in core
+	logger.Info("worker started")
+	<-ctx.Done()
+	logger.Info("worker shutting down")
 }

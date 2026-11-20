@@ -2,31 +2,43 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewPool(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping database test in short mode")
-	}
-
-	dsn := os.Getenv("DATABASE_URL")
-	if dsn == "" {
-		t.Skip("DATABASE_URL not set, skipping database test")
-	}
-
 	ctx := context.Background()
-	pool, err := New(ctx, dsn)
-	assert.NoError(t, err)
-	assert.NotNil(t, pool)
+	pool, err := New(ctx, testDSN())
+	require.NoError(t, err)
+	require.NotNil(t, pool)
+	defer pool.Close()
 
-	// Test that we can ping
-	err = pool.Ping(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, pool.Ping(ctx))
+}
 
-	// Clean up
-	pool.Close()
+func TestMigrateIsIdempotent(t *testing.T) {
+	ctx := context.Background()
+
+	sqlDB, err := sql.Open("pgx", testDSN())
+	require.NoError(t, err)
+	defer sqlDB.Close()
+
+	require.NoError(t, Migrate(ctx, sqlDB))
+	require.NoError(t, Migrate(ctx, sqlDB))
+
+	var version int64
+	err = sqlDB.QueryRowContext(ctx, "SELECT COALESCE(MAX(version_id), 0) FROM goose_db_version").Scan(&version)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, version, int64(1))
+}
+
+func testDSN() string {
+	if dsn := os.Getenv("DATABASE_URL"); dsn != "" {
+		return dsn
+	}
+	return "postgres://postgres:password@localhost:5432/email_platform_dev?sslmode=disable"
 }

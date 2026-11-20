@@ -2,90 +2,53 @@ package health
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
-	"time"
-
-	"github.com/jackc/pgx/v5"
-	"github.com/go-redis/redis/v8"
 )
 
-// DBChecker implements database health checks
-type DBChecker struct {
-	DSN string
+// Pinger is the small dependency the readiness check needs.
+type Pinger interface {
+	Ping(ctx context.Context) error
 }
 
-// Server handles health check endpoints
-type Server struct {
-	db  *DBChecker
-	redis *redis.Client
+// Status is the result of a readiness check.
+type Status struct {
+	Ready    bool
+	Database string
+	Redis    string
 }
 
-// New creates a new health server
-func New(db *DBChecker, redisClient *redis.Client) *Server {
-	return &Server{
-		db:    db,
-		redis: redisClient,
-	}
+// Service reports liveness and readiness.
+type Service struct {
+	db    Pinger
+	redis Pinger
 }
 
-// Healthz returns HTTP 200 when service is alive
-func (s *Server) Healthz(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	response := map[string]string{
-		"status": "ok",
-	}
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
+// New creates a health service. Redis is optional and never gates readiness;
+// the architecture promises that Redis downtime loses no work.
+func New(db Pinger, redis Pinger) *Service {
+	return &Service{db: db, redis: redis}
 }
 
-// Readyz returns HTTP 200 when database is ready, or 503 when not
-func (s *Server) Readyz(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+// Live reports whether the process is running.
+func (s *Service) Live() bool {
+	return true
+}
 
-	response := map[string]interface{}{
-		"status": "ok",
-		"checks": map[string]string{
-			"db": "ok",
-		},
+// Ready checks the database and reports Redis status informationally.
+func (s *Service) Ready(ctx context.Context) Status {
+	status := Status{Ready: true, Database: "ok", Redis: "disabled"}
+
+	if s.db == nil || s.db.Ping(ctx) != nil {
+		status.Ready = false
+		status.Database = "error"
 	}
 
-	// Check database
-	if s.db != nil {
-		conn, err := pgx.Connect(ctx, s.db.DSN)
-		if err != nil {
-			response["status"] = "degraded"
-			response["checks"].(map[string]string)["db"] = "error"
-			w.WriteHeader(http.StatusServiceUnavailable)
-			if err := json.NewEncoder(w).Encode(response); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-			return
-		}
-		conn.Close(ctx)
-	}
-
-	// Check Redis if configured
 	if s.redis != nil {
-		pong, err := s.redis.Ping(ctx).Result()
-		if err != nil || pong != "PONG" {
-			response["status"] = "degraded"
-			w.WriteHeader(http.StatusServiceUnavailable)
-			if err := json.NewEncoder(w).Encode(response); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-			return
+		if s.redis.Ping(ctx) != nil {
+			status.Redis = "error"
+		} else {
+			status.Redis = "ok"
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
+	return status
 }

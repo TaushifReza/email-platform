@@ -3,34 +3,28 @@ package logging
 import (
 	"bytes"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 func TestNew(t *testing.T) {
-	// Test creating a logger with valid level
 	logger, err := New("info", os.Stderr)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, logger)
-	
-	// Test creating a logger with invalid level
+
 	_, err = New("invalid", os.Stderr)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestRedactSensitiveFields(t *testing.T) {
-	// Create a buffer to capture log output
 	var buf bytes.Buffer
-	
-	// Use an in-memory JSON encoder to test redaction
-	logger, err := New("info", &buf)
-	assert.NoError(t, err)
 
-	// Log sensitive information that should be redacted
+	logger, err := New("info", &buf)
+	require.NoError(t, err)
+
 	logger.Info("test",
 		zap.String("password", "secret123"),
 		zap.String("secret_token", "abc123"),
@@ -38,7 +32,6 @@ func TestRedactSensitiveFields(t *testing.T) {
 		zap.String("authorization", "Bearer token123"),
 		zap.String("api_key", "key123"))
 
-	// Check that sensitive values were redacted
 	logOutput := buf.String()
 	assert.Contains(t, logOutput, `"password":"[REDACTED]"`)
 	assert.Contains(t, logOutput, `"secret_token":"[REDACTED]"`)
@@ -48,28 +41,22 @@ func TestRedactSensitiveFields(t *testing.T) {
 }
 
 func TestRedactEmailInField(t *testing.T) {
-	// This tests that the field-level redaction doesn't interfere with 
-	// email redaction in redact.go for sensitive fields
 	var buf bytes.Buffer
-	
+
 	logger, err := New("info", &buf)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	// Log an email address through a normal field - should be handled by redact.go
-	logger.Info("test",
-		zap.String("email", "user@example.com"))
+	logger.Info("test", zap.String("email", "user@example.com"))
 
-	logOutput := buf.String()
-	assert.Contains(t, logOutput, `"email":"u***@example.com"`)
+	assert.Contains(t, buf.String(), `"email":"u***@example.com"`)
 }
 
 func TestRedactionWithVariants(t *testing.T) {
 	var buf bytes.Buffer
-	
-	logger, err := New("info", &buf)
-	assert.NoError(t, err)
 
-	// Test different variants of sensitive keys
+	logger, err := New("info", &buf)
+	require.NoError(t, err)
+
 	logger.Info("test",
 		zap.String("secret_key", "secret123"),
 		zap.String("passwd", "password123"),
@@ -80,107 +67,43 @@ func TestRedactionWithVariants(t *testing.T) {
 	assert.Contains(t, logOutput, `"secret_key":"[REDACTED]"`)
 	assert.Contains(t, logOutput, `"passwd":"[REDACTED]"`)
 	assert.Contains(t, logOutput, `"auth_token":"[REDACTED]"`)
-	assert.Contains(t, logOutput, `"bearer_token":"[REREDACTED]"`)
+	assert.Contains(t, logOutput, `"bearer_token":"[REDACTED]"`)
 }
 
 func TestRedactCore_Write(t *testing.T) {
-	// Create a buffer to capture output
 	var buf bytes.Buffer
-	
-	// Create a zap logger that uses our redaction core
+
 	logger, err := New("info", &buf)
-	assert.NoError(t, err)
-	
-	// Test logging with sensitive information
-	logger.Info("Test message", 
+	require.NoError(t, err)
+
+	logger.Info("Test message",
 		zap.String("password", "secret123"),
 		zap.String("email", "test@example.com"),
 		zap.String("token", "Bearer abc123"),
 		zap.String("normal_field", "normal_value"),
 	)
-	
-	// Get the output
+
 	output := buf.String()
-	
-	// Verify that sensitive information was redacted
 	assert.Contains(t, output, "[REDACTED]")
-	assert.Contains(t, output, "u***@example.com")
+	assert.Contains(t, output, "t***@example.com")
 	assert.NotContains(t, output, "secret123")
 	assert.NotContains(t, output, "abc123")
 	assert.Contains(t, output, "normal_value")
 }
 
-func TestRedact(t *testing.T) {
-	tests := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{
-			name: "password in field",
-			in:   "password=test123",
-			want: "[REDACTED]",
-		},
-		{
-			name: "secret in field",
-			in:   "secret=secret123",
-			want: "[REDACTED]",
-		},
-		{
-			name: "email address redacted",
-			in:   "user@example.com",
-			want: "u***@example.com",
-		},
-		{
-			name: "bearer token redacted",
-			in:   "Bearer abc123def456",
-			want: "[REDACTED]",
-		},
-		{
-			name: "normal text unchanged",
-			in:   "This is a normal message",
-			want: "This is a normal message",
-		},
-	}
-	
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, Redact(tt.in))
-		})
-	}
-}
+func TestPlantedSecretAndEmailNeverAppear(t *testing.T) {
+	var buf bytes.Buffer
 
-func TestMaskEmail(t *testing.T) {
-	tests := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{
-			name: "simple email",
-			in:   "user@example.com",
-			want: "u***@example.com",
-		},
-		{
-			name: "complex email with subdomain",
-			in:   "user.name@test.co.uk",
-			want: "u***@co.uk",
-		},
-		{
-			name: "empty string",
-			in:   "",
-			want: "[REDACTED]",
-		},
-		{
-			name: "invalid email format",
-			in:   "notanemail",
-			want: "[REDACTED]",
-		},
-	}
-	
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, maskEmail(tt.in))
-		})
-	}
+	logger, err := New("info", &buf)
+	require.NoError(t, err)
+	logger = logger.With(zap.String("password", "planted-password-123"))
+	logger.Info("contact planted@example.com with token=planted-token-456",
+		zap.String("recipient", "planted@example.com"),
+		zap.String("note", "secret=planted-secret-789"))
+
+	output := buf.String()
+	assert.NotContains(t, output, "planted-password-123")
+	assert.NotContains(t, output, "planted-token-456")
+	assert.NotContains(t, output, "planted-secret-789")
+	assert.NotContains(t, output, "planted@example.com")
 }

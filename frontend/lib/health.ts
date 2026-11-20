@@ -1,13 +1,5 @@
-// Health check function that calls the backend
+import { getHealth } from "./api";
+
 export async function checkHealth(): Promise<{ status: string }> {
-  try {
-    const response = await fetch('/api/healthz');
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error('Health check failed:', error);
-    throw error;
-  }
+  return getHealth();
 }

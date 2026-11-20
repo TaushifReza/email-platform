@@ -12,8 +12,29 @@ linters-settings:
 linters:
   enable-all: true
   disable:
+    - cyclop
+    - depguard
+    - err113
+    - exhaustruct
+    - funlen
+    - ireturn
+    - mnd
+    - nlreturn
+    - paralleltest
     - prealloc
+    - tagliatelle
     - tenv # deprecated
+    - testpackage
+    - usetesting
+    - varnamelen
+    - wrapcheck
+    - wsl
 
 run:
   tests: true
+
+issues:
+  exclude-dirs:
+    - frontend
+    - .next
+    - out

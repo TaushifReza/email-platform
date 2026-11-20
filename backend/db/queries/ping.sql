@@ -1,2 +1,2 @@
--- name: Ping
+-- name: Ping :one
 SELECT 1;

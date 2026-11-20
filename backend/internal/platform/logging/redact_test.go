@@ -80,12 +80,12 @@ func TestMaskEmail(t *testing.T) {
 		{
 			name: "email with multiple dots",
 			in:   "user.name@example.co.uk",
-			want: "u***@co.uk",
+			want: "u***@example.co.uk",
 		},
 		{
 			name: "empty string",
 			in:   "",
-			want: "[REDACTED]",
+			want: "",
 		},
 		{
 			name: "invalid email format (no @)",

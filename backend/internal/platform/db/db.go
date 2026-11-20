@@ -7,14 +7,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// New creates a new pgx pool from DSN with appropriate settings
+// New creates a new pgx pool from DSN with appropriate settings.
 func New(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	config, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		return nil, err
 	}
 
-	// Configure the pool
+	// Configure the pool.
 	config.MaxConns = 10
 	config.MinConns = 1
 	config.MaxConnLifetime = 30 * time.Minute
@@ -25,7 +25,7 @@ func New(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 		return nil, err
 	}
 
-	// Verify connection works
+	// Verify connection works.
 	if err = pool.Ping(ctx); err != nil {
 		pool.Close()
 		return nil, err

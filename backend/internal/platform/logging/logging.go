@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-// New creates a new zap logger with redaction
+// New creates a new zap logger with secret and email redaction.
 func New(level string, writer io.Writer) (*zap.Logger, error) {
 	logLevel, err := zapcore.ParseLevel(level)
 	if err != nil {
@@ -27,7 +27,7 @@ func New(level string, writer io.Writer) (*zap.Logger, error) {
 	return zap.New(&redactCore{core: core}), nil
 }
 
-// redactCore wraps a zapcore.Core and redacts sensitive values in field content
+// redactCore wraps a zapcore.Core and redacts sensitive values.
 type redactCore struct {
 	core zapcore.Core
 }
@@ -37,43 +37,58 @@ func (c *redactCore) Enabled(level zapcore.Level) bool {
 }
 
 func (c *redactCore) With(fields []zapcore.Field) zapcore.Core {
-	// Create a new core with the same underlying core and updated fields
-	return &redactCore{core: c.core.With(fields)}
+	return &redactCore{core: c.core.With(redactFields(fields))}
 }
 
 func (c *redactCore) Check(entry zapcore.Entry, checked *zapcore.CheckedEntry) *zapcore.CheckedEntry {
-	return c.core.Check(entry, checked)
+	if !c.Enabled(entry.Level) {
+		return checked
+	}
+	return checked.AddCore(entry, c)
 }
 
 func (c *redactCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
-	// Redact sensitive values in fields
-	var redactedFields []zapcore.Field
-
-	for _, field := range fields {
-		if isSensitiveKey(field.Key) {
-			// Redact the value of sensitive fields
-			redactedFields = append(redactedFields, zap.String(field.Key, "[REDACTED]"))
-		} else {
-			redactedFields = append(redactedFields, field)
-		}
-	}
-
-	return c.core.Write(entry, redactedFields)
+	entry.Message = Redact(entry.Message)
+	return c.core.Write(entry, redactFields(fields))
 }
 
 func (c *redactCore) Sync() error {
 	return c.core.Sync()
 }
 
-// isSensitiveKey reports whether a field key should be redacted
+func redactFields(fields []zapcore.Field) []zapcore.Field {
+	redacted := make([]zapcore.Field, 0, len(fields))
+	for _, field := range fields {
+		redacted = append(redacted, redactField(field))
+	}
+	return redacted
+}
+
+func redactField(field zapcore.Field) zapcore.Field {
+	if isSensitiveKey(field.Key) {
+		return zap.String(field.Key, "[REDACTED]")
+	}
+
+	//nolint:exhaustive // Only string-like fields can contain secrets.
+	switch field.Type {
+	case zapcore.StringType:
+		return zap.String(field.Key, Redact(field.String))
+	case zapcore.ByteStringType:
+		return zap.ByteString(field.Key, []byte(Redact(field.String)))
+	default:
+		return field
+	}
+}
+
 func isSensitiveKey(key string) bool {
-	lowerKey := strings.ToLower(key)
-	return strings.Contains(lowerKey, "password") ||
-		strings.Contains(lowerKey, "passwd") ||
-		strings.Contains(lowerKey, "secret") ||
-		strings.Contains(lowerKey, "token") ||
-		strings.Contains(lowerKey, "seed") ||
-		strings.Contains(lowerKey, "authorization") ||
-		strings.Contains(lowerKey, "api_key") ||
-		strings.Contains(lowerKey, "auth")
+	normalized := strings.NewReplacer("_", "", "-", "", ".", "", " ", "").Replace(strings.ToLower(key))
+	sensitiveParts := []string{
+		"password", "passwd", "secret", "token", "apikey", "authorization", "seed", "bearer",
+	}
+	for _, part := range sensitiveParts {
+		if strings.Contains(normalized, part) {
+			return true
+		}
+	}
+	return normalized == "auth"
 }

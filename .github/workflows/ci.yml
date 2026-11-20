@@ -2,9 +2,13 @@ name: CI
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
   push:
-    branches: [ main ]
+    branches: [main]
+
+env:
+  GO_VERSION: "1.26.x"
+  DATABASE_URL: postgres://postgres:ci@localhost:5432/email_platform_test?sslmode=disable
 
 jobs:
   test:
@@ -14,7 +18,9 @@ jobs:
         image: postgres:17
         env:
           POSTGRES_PASSWORD: ci
-          POSTGRES_DB: platform
+          POSTGRES_DB: email_platform_test
+        ports:
+          - 5432:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -26,40 +32,46 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.x'
-          cache: false
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
 
-      - name: Run redflag checks
-        run: |
-          cd backend && bash ../tools/redflags.sh
+      - name: Run red-flag checks
+        run: bash tools/redflags.sh
 
-      - name: Run tests on root module
-        run: |
-          go test ./... -v || exit 1
+      - name: Run tests
+        run: go test ./backend/... ./tools/...
 
-      - name: Run tests on backend module
-        run: |
-          cd backend && go test ./... -v || exit 1
+      - name: Run vet
+        run: go vet ./backend/... ./tools/...
 
-      - name: Run vet checks on root module
-        run: |
-          go vet ./...
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Run vet checks on backend module
-        run: |
-          cd backend && go vet ./...
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
 
-      - name: Run govulncheck on root module
-        run: |
-          govulncheck ./... || exit 1
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Run govulncheck on backend module
-        run: |
-          cd backend && govulncheck ./... || exit 1
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
 
-      - name: Run gosec on backend module
+      - name: Regenerate and verify contracts
+        run: make gen-check
+
+      - name: Verify generated files are committed
         run: |
-          gosec -severity medium -confidence medium ./... || exit 1
+          test -z "$(git status --porcelain -- backend/api/openapi.gen.go backend/internal/platform/db/sqlc frontend/lib/types/openapi.ts)"
 
   lint:
     runs-on: ubuntu-latest
@@ -69,20 +81,13 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.x'
-          cache: false
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
 
-      - name: Run golangci-lint on root module
-        run: |
-          golangci-lint run
-
-      - name: Run golangci-lint on backend module
-        run: |
-          cd backend && golangci-lint run
+      - name: Run golangci-lint
+        run: make lint
 
   frontend:
-    needs: [test, lint]
-    if: hashFiles('frontend/package.json') != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -90,22 +95,44 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
+          node-version: "22.x"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
-        run: |
-          npm ci
+        run: npm ci
+        working-directory: frontend
 
-      - name: Run frontend typecheck
-        run: |
-          npm run typecheck
+      - name: Typecheck
+        run: npm run typecheck
+        working-directory: frontend
 
-      - name: Run frontend build
-        run: |
-          npm run build
+      - name: Lint
+        run: npm run lint
+        working-directory: frontend
+
+      - name: Build
+        run: npm run build
+        working-directory: frontend
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.10.0 ./backend/... ./tools/...
+
+      - name: Run gosec
+        run: go run github.com/securego/gosec/v2/cmd/gosec@v2.30.0 -severity medium -confidence medium ./backend/... ./tools/...
 
   secrets-scan:
-    needs: [test, lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -115,13 +142,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.x'
-          cache: false
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
 
-      - name: Install gitleaks
-        run: |
-          go install github.com/gitleaks/gitleaks/v8@latest
-
-      - name: Run gitleaks scan
-        run: |
-          gitleaks detect --source . --redact
+      - name: Run gitleaks
+        run: go run github.com/gitleaks/gitleaks/v8@latest detect --source . --redact

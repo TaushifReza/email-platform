@@ -6,7 +6,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
@@ -15,259 +17,282 @@ import (
 	"time"
 )
 
-// Server represents a fake SMTP server for testing
+// Server is a fake SMTP server with an HTTP API that lists received messages.
 type Server struct {
-	listener    net.Listener
+	smtpListener net.Listener
 	httpListener net.Listener
-	script      *Script
-	messages    []*Message
-	mu          sync.RWMutex
-	shutdown    chan struct{}
-	cert        *tls.Certificate
+	httpServer   *http.Server
+	script       *Script
+	cert         *tls.Certificate
+
+	mu       sync.RWMutex
+	messages []*Message
+	nextID   int
+
+	closeOnce sync.Once
+	done      chan struct{}
+	wg        sync.WaitGroup
 }
 
-// Options configure the fakesmtp server
+// Options configure the fake SMTP server.
 type Options struct {
-	// Script defines the behaviors for the SMTP server
-	Script *Script
-	
-	// TLSCertFile specifies a path to a cert file (optional)
+	Script      *Script
+	SMTPAddr    string
+	HTTPAddr    string
 	TLSCertFile string
-	
-	// TLSKeyFile specifies a path to a key file (optional)
-	TLSKeyFile string
-	
-	// HTTPAddr specifies the address for the HTTP API (default ":0")
-	HTTPAddr string
+	TLSKeyFile  string
 }
 
-// New creates a new fake SMTP server with the given options
+// New creates a fake SMTP server. Call Start to begin accepting connections.
 func New(opts Options) (*Server, error) {
-	s := &Server{
-		script:   opts.Script,
-		messages: []*Message{},
-		shutdown: make(chan struct{}),
+	script := opts.Script
+	if script == nil {
+		script = DefaultScript()
 	}
-	
-	if s.script == nil {
-		s.script = DefaultScript()
+
+	smtpAddr := opts.SMTPAddr
+	if smtpAddr == "" {
+		smtpAddr = "127.0.0.1:0"
 	}
-	
-	// Create HTTP listener for API
 	httpAddr := opts.HTTPAddr
 	if httpAddr == "" {
-		httpAddr = ":0"
+		httpAddr = "127.0.0.1:0"
 	}
-	
+
+	var cert *tls.Certificate
+	if script.TLS != TLSNone || opts.TLSCertFile != "" || opts.TLSKeyFile != "" {
+		loaded, err := loadCertificate(opts.TLSCertFile, opts.TLSKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		cert = loaded
+	}
+
+	smtpListener, err := net.Listen("tcp", smtpAddr)
+	if err != nil {
+		return nil, fmt.Errorf("listen SMTP: %w", err)
+	}
+
 	httpListener, err := net.Listen("tcp", httpAddr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create HTTP listener: %w", err)
+		_ = smtpListener.Close()
+		return nil, fmt.Errorf("listen HTTP: %w", err)
 	}
-	s.httpListener = httpListener
-	
-	// Create SMTP listener
-	listener, err := net.Listen("tcp", ":0")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create SMTP listener: %w", err)
+
+	server := &Server{
+		smtpListener: smtpListener,
+		httpListener: httpListener,
+		script:       script,
+		cert:         cert,
+		done:         make(chan struct{}),
 	}
-	s.listener = listener
-	
-	// Generate self-signed certificate for TLS if needed
-	if opts.TLSCertFile == "" && opts.TLSKeyFile == "" {
-		cert, err := generateSelfSignedCert()
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate certificate: %w", err)
-		}
-		s.cert = cert
+	server.httpServer = &http.Server{
+		Handler:           server.handler(),
+		ReadHeaderTimeout: 5 * time.Second,
 	}
-	
-	return s, nil
+
+	return server, nil
 }
 
-// Start begins serving SMTP and HTTP requests in separate goroutines
+// Start begins serving SMTP and HTTP connections.
 func (s *Server) Start() error {
-	go func() {
-		for {
-			select {
-			case <-s.shutdown:
-				return
-			default:
-				conn, err := s.listener.Accept()
-				if err != nil {
-					continue
-				}
-				go s.handleConn(conn)
-			}
-		}
-	}()
-	
-	go s.setupHTTPHandler()
-	
+	s.wg.Add(2)
+	go s.serveSMTP()
+	go s.serveHTTP()
 	return nil
 }
 
-// Shutdown stops the server
+// Shutdown stops the server and waits for its accept loops to exit.
 func (s *Server) Shutdown() error {
-	close(s.shutdown)
-	if s.listener != nil {
-		s.listener.Close()
-	}
-	if s.httpListener != nil {
-		s.httpListener.Close()
-	}
+	s.closeOnce.Do(func() {
+		close(s.done)
+		_ = s.smtpListener.Close()
+		_ = s.httpServer.Close()
+		_ = s.httpListener.Close()
+	})
+	s.wg.Wait()
 	return nil
 }
 
-// SMTPAddr returns the address where the SMTP server is listening
+// SMTPAddr returns the SMTP listen address.
 func (s *Server) SMTPAddr() string {
-	if s.listener == nil {
-		return ""
-	}
-	return s.listener.Addr().String()
+	return s.smtpListener.Addr().String()
 }
 
-// HTTPAddr returns the address where the HTTP API is listening
+// HTTPAddr returns the HTTP listen address.
 func (s *Server) HTTPAddr() string {
-	if s.httpListener == nil {
-		return ""
-	}
 	return s.httpListener.Addr().String()
 }
 
-// Messages returns a copy of all messages received by the server
+// Messages returns a copy of all received messages.
 func (s *Server) Messages() []*Message {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
-	msgs := make([]*Message, len(s.messages))
-	copy(msgs, s.messages)
-	return msgs
+
+	messages := make([]*Message, len(s.messages))
+	copy(messages, s.messages)
+	return messages
 }
 
-// ClearMessages removes all messages from the server
+// ClearMessages removes all received messages.
 func (s *Server) ClearMessages() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.messages = []*Message{}
+	s.messages = nil
 }
 
-// handleConn handles a single SMTP connection
-func (s *Server) handleConn(conn net.Conn) {
-	defer conn.Close()
-	
-	// Check if TLS is required
-	if s.cert != nil {
-		// Upgrade to TLS
-		tlsConfig := &tls.Config{
-			Certificates: []tls.Certificate{*s.cert},
-			ServerName:   "fakesmtp",
+func (s *Server) serveSMTP() {
+	defer s.wg.Done()
+
+	for {
+		conn, err := s.smtpListener.Accept()
+		if err != nil {
+			return
 		}
-		
-		tlsConn := tls.Server(conn, tlsConfig)
-		conn = tlsConn
-	}
-	
-	session := &session{
-		conn:     conn,
-		script:   s.script,
-		server:   s,
-		cert:     s.cert,
-	}
-	session.run()
-}
-
-// DefaultScript returns a script that accepts all messages
-func DefaultScript() *Script {
-	return &Script{
-		Behaviors: []Behavior{
-			{
-				Command:   "all",
-				ReplyCode: 250,
-				ReplyText: "OK",
-			},
-		},
+		go s.handleConn(conn)
 	}
 }
 
-// setupHTTPHandler sets up the HTTP API for message listing
-func (s *Server) setupHTTPHandler() {
+func (s *Server) serveHTTP() {
+	defer s.wg.Done()
+	_ = s.httpServer.Serve(s.httpListener) //nolint:errcheck // Closed during shutdown.
+}
+
+func (s *Server) handler() http.Handler {
 	mux := http.NewServeMux()
-	
-	mux.HandleFunc("GET /api/v1/messages", s.listMessagesHandler)
-	mux.HandleFunc("GET /api/v1/messages/{id}", s.getMessageHandler)
-	mux.HandleFunc("DELETE /api/v1/messages", s.clearMessagesHandler)
-	mux.HandleFunc("GET /healthz", s.healthHandler)
-	
-	// This would be called by an HTTP server
-	go func() {
-		if s.httpListener != nil {
-			http.Serve(s.httpListener, mux)
+	mux.HandleFunc("GET /api/v1/messages", s.listMessages)
+	mux.HandleFunc("GET /api/v1/messages/{id}", s.getMessage)
+	mux.HandleFunc("DELETE /api/v1/messages", s.deleteMessages)
+	mux.HandleFunc("GET /healthz", s.health)
+	return mux
+}
+
+func (s *Server) listMessages(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.Messages())
+}
+
+func (s *Server) getMessage(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	for _, message := range s.Messages() {
+		if message.ID == id {
+			writeJSON(w, http.StatusOK, message)
+			return
 		}
-	}()
+	}
+	writeJSON(w, http.StatusNotFound, map[string]string{"error": "message not found"})
 }
 
-func (s *Server) listMessagesHandler(w http.ResponseWriter, r *http.Request) {
-	s.Messages() // Use to ensure we don't have unused variable warning
-	
-	w.Header().Set("Content-Type", "application/json")
-	// For now just write an empty JSON array to satisfy the prototype
-	fmt.Fprintf(w, "[]")
-}
-
-func (s *Server) getMessageHandler(w http.ResponseWriter, r *http.Request) {
-	// Get message ID from URL path: /api/v1/messages/{id}
-	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(w, "{}") // Placeholder for now
-}
-
-func (s *Server) clearMessagesHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) deleteMessages(w http.ResponseWriter, _ *http.Request) {
 	s.ClearMessages()
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(w, `{"status": "ok"}`)
+func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// generateSelfSignedCert generates a self-signed certificate for TLS
-func generateSelfSignedCert() (*tls.Certificate, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, err
+func (s *Server) handleConn(conn net.Conn) {
+	defer conn.Close()
+
+	isTLS := false
+	if s.script.TLS == TLSImplicit {
+		if s.cert == nil {
+			return
+		}
+		tlsConn := tls.Server(conn, &tls.Config{
+			Certificates: []tls.Certificate{*s.cert},
+			MinVersion:   tls.VersionTLS12,
+		})
+		if err := tlsConn.Handshake(); err != nil {
+			return
+		}
+		conn = tlsConn
+		isTLS = true
 	}
-	
-	SerialNumber, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+
+	session := newSession(s, conn)
+	session.tls = isTLS
+	session.run()
+}
+
+func (s *Server) storeMessage(from string, to []string, raw []byte) *Message {
+	message := parseMessage(from, to, raw)
+
+	s.mu.Lock()
+	s.nextID++
+	message.ID = fmt.Sprintf("msg_%d", s.nextID)
+	s.messages = append(s.messages, message)
+	s.mu.Unlock()
+
+	return message
+}
+
+func writeJSON(w http.ResponseWriter, status int, value any) {
+	data, err := json.Marshal(value)
 	if err != nil {
-		return nil, err
+		http.Error(w, "encode response", http.StatusInternalServerError)
+		return
 	}
-	
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if _, err = w.Write(data); err != nil {
+		return
+	}
+}
+
+// DefaultScript accepts every message over plaintext SMTP.
+func DefaultScript() *Script {
+	return &Script{TLS: TLSNone}
+}
+
+func loadCertificate(certFile, keyFile string) (*tls.Certificate, error) {
+	if certFile != "" || keyFile != "" {
+		if certFile == "" || keyFile == "" {
+			return nil, errors.New("both TLSCertFile and TLSKeyFile are required")
+		}
+		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			return nil, fmt.Errorf("load TLS key pair: %w", err)
+		}
+		return &cert, nil
+	}
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, fmt.Errorf("generate key: %w", err)
+	}
+
+	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return nil, fmt.Errorf("generate serial: %w", err)
+	}
+
 	template := x509.Certificate{
-		SerialNumber: SerialNumber,
+		SerialNumber: serial,
 		Subject: pkix.Name{
 			Organization: []string{"Fake SMTP Server"},
 			CommonName:   "fakesmtp",
 		},
-		NotBefore: time.Now(),
-		NotAfter:  time.Now().Add(365 * 24 * time.Hour),
-		
+		NotBefore:             time.Now().Add(-time.Minute),
+		NotAfter:              time.Now().Add(24 * time.Hour),
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
+		DNSNames:              []string{"fakesmtp", "localhost"},
+		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")},
 	}
-	
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+
+	der, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create certificate: %w", err)
 	}
-	
-	certBytes := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
-	keyBytes := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
-	
-	cert, err := tls.X509KeyPair(certBytes, keyBytes)
+
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse certificate: %w", err)
 	}
-	
 	return &cert, nil
 }
