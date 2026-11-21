@@ -1,0 +1,69 @@
+openapi: 3.0.3
+info:
+  title: Email Platform API
+  version: 0.1.0
+  description: API for the multi-tenant email automation platform
+servers:
+  - url: /
+paths:
+  /healthz:
+    get:
+      operationId: getHealth
+      summary: Liveness check
+      responses:
+        '200':
+          description: Process is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /readyz:
+    get:
+      operationId: getReady
+      summary: Readiness check
+      description: Returns 200 only when the database is reachable.
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadyResponse'
+        '503':
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadyResponse'
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: ok
+    ReadyResponse:
+      type: object
+      required:
+        - status
+        - checks
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+          example: ok
+        checks:
+          type: object
+          required:
+            - db
+            - redis
+          properties:
+            db:
+              type: string
+              example: ok
+            redis:
+              type: string
+              example: disabled

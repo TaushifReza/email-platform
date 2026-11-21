@@ -1,0 +1,11 @@
+version: "2"
+sql:
+  - schema: "backend/db/migrations"
+    queries: "backend/db/queries"
+    engine: "postgresql"
+    gen:
+      go:
+        package: "sqlc"
+        out: "backend/internal/platform/db/sqlc"
+        emit_interface: false
+        emit_db_tags: false
