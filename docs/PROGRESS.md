@@ -82,3 +82,14 @@ belong to later work packages and were not implemented here.
   frontend health client, CSP hash spike, and a scripted fakesmtp with SMTP/TLS
   and HTTP API self-tests. Moved to Go 1.26.11 to clear standard-library
   vulnerabilities. No commit was created in this session.
+- 2026-11-21 WP02.2 (`WithOrg` + catalog guard): added `db.WithOrg`, which runs
+  each tenant transaction as `email_app` with `app.org_id` set and fails closed
+  on an empty organization; `db.DB` hides raw query methods and uses
+  `database/sql` (pgx stdlib) to match sqlc. The catalog guard requires forced
+  RLS plus an `email_app`/PUBLIC policy on every tenant table and composite
+  `organization_id` FKs between them; `audit_log` partitions are skipped and the
+  parent checked. `make test-module M=platform/db`,
+  `go test -race ./backend/internal/platform/db/...` and `make ci` pass.
+  Next: WP02.3 password hashing, login, lockout and rate limits. Committed;
+  handler/service/repository and frontend layering documented in
+  `docs/technical-design/01-architecture.md`.

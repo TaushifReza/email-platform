@@ -2,34 +2,45 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	// Register the pgx driver for database/sql.
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-// New creates a new pgx pool from DSN with appropriate settings.
-func New(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
-	config, err := pgxpool.ParseConfig(dsn)
+// DB owns the database handle. Query methods are intentionally not exposed:
+// tenant SQL must run inside WithOrg so row-level security is always scoped.
+type DB struct {
+	sql *sql.DB
+}
+
+// New creates a new database handle from DSN with appropriate settings.
+func New(ctx context.Context, dsn string) (*DB, error) {
+	sqlDB, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
 	}
 
-	// Configure the pool.
-	config.MaxConns = 10
-	config.MinConns = 1
-	config.MaxConnLifetime = 30 * time.Minute
-	config.HealthCheckPeriod = 30 * time.Second
+	sqlDB.SetMaxOpenConns(10)
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetConnMaxLifetime(30 * time.Minute)
+	sqlDB.SetConnMaxIdleTime(30 * time.Second)
 
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
+	if err = sqlDB.PingContext(ctx); err != nil {
+		_ = sqlDB.Close()
 		return nil, err
 	}
 
-	// Verify connection works.
-	if err = pool.Ping(ctx); err != nil {
-		pool.Close()
-		return nil, err
-	}
+	return &DB{sql: sqlDB}, nil
+}
 
-	return pool, nil
+// Ping verifies the database is reachable.
+func (d *DB) Ping(ctx context.Context) error {
+	return d.sql.PingContext(ctx)
+}
+
+// Close releases the database handle.
+func (d *DB) Close() error {
+	return d.sql.Close()
 }

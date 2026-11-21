@@ -20,6 +20,21 @@ backend/
 ```
 Rules: handlers are thin and call services. Services take an `Actor` (user id, organization id, role). Modules talk through interfaces and never read each other's tables. Time comes from an injectable clock so tests control it.
 
+## Backend layering
+Every module under `internal/<module>` uses the same layers; dependencies point inward only.
+
+| Layer | Location | Responsibility |
+|---|---|---|
+| Handler | `backend/api` | Implement the generated OpenAPI interface. Decode and validate transport input, call one service method, map errors to HTTP. No SQL and no business rules. |
+| Service | `internal/<module>/service.go` | Use cases, authorization through the central permission function, transaction boundaries through `db.WithOrg`, and orchestration of repositories and other services. |
+| Repository | `internal/<module>/repository.go` | All module SQL through sqlc, inside the transaction the service opened. Implements the repository interfaces declared by the service. |
+
+- The service declares the repository interface it consumes; the repository is the only layer that imports `sqlc` or knows table names.
+- Cross-module access goes through the other module's service interface, never its repository or tables.
+- Handlers and services never build SQL; repositories never make authorization decisions.
+- Service tests use fake repositories, repository tests use the real schema and RLS, handler tests use fake services.
+- Domain types and errors live in `internal/<module>`; handlers translate them to OpenAPI responses.
+
 ## Request and job context
 Every request and job opens a transaction and runs `SET LOCAL app.org_id`. The helper is `WithOrg(ctx, orgID, func(tx) error)`. System jobs that must span organizations (scheduler tick, recovery sweeper, purge) use a separate narrow database role with explicit policies.
 
@@ -33,6 +48,23 @@ RustFS through S3 API. Keys are generated IDs: `org/{org_id}/campaign/{campaign_
 
 ## Frontend
 Next.js static export, client-side only, talking to `/api`. Typed client generated from OpenAPI. Session cookie set by Go. The unsubscribe page is rendered by Go, not by Next.js.
+
+Frontend layering mirrors the backend: route -> feature -> service -> generated client.
+```
+frontend/
+  app/                  route segments and layouts only
+  features/<feature>/   feature components, hooks and service modules
+  components/           shared presentational components
+  components/ui/        shadcn/ui primitives
+  lib/api.ts            fetch wrapper: credentials, CSRF, error mapping
+  lib/types/openapi.ts  generated types (never edit)
+```
+- Pages in `app/` only compose feature components and read route params; no fetching or business rules.
+- A feature owns its UI, hooks (`use<Feature>`) and service (`<feature>Service`) that calls the generated client.
+- Components are presentational and receive data and callbacks.
+- All HTTP goes through the typed client or `lib/api.ts`; no ad-hoc `fetch` in pages or components.
+- Server state lives in feature hooks (TanStack Query once introduced per D-01); form state stays local.
+- Request and response types come from `lib/types/openapi.ts`; do not hand-write them.
 
 ## Network
 ```
