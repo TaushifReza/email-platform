@@ -20,3 +20,5 @@ Pull request: lint, unit and database tests (RLS guard, tenant tests), sending c
 
 ## First deployment checklist
 Domain and tunnel hostnames; Access policy on admin; system sender mailbox with SPF/DKIM/DMARC; master key generated and backed up; bucket and key created; backup job and restore test passing; staging campaign with forced crash; production smoke test with about 10 recipients, all owner-controlled addresses.
+
+Dev stack API documentation: `http://localhost:8081/api/docs` (enabled by `DEV_MODE=true`).

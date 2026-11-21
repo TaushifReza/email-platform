@@ -80,5 +80,6 @@ worker egress: internet (SMTP) + postgres, redis, rustfs only
 - Logging: zap with a redaction layer (passwords, secrets, tokens). Recipient emails masked. Request bodies never logged.
 - Config: environment variables, and `*_FILE` variables pointing to Docker secrets.
 - Health: `/healthz` (process) and `/readyz` (database reachable).
+- Dev-only API docs: when `DEV_MODE=true`, the API serves Swagger UI at `/docs` and the spec at `/openapi.yaml`.
 - Metrics: Prometheus format from `api` and `worker`.
 - Trusted proxy: the client IP header is trusted only for requests from the nginx container network.

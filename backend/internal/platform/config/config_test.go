@@ -145,3 +145,22 @@ func writeSecret(t *testing.T, dir, name, value string) string {
 
 	return path
 }
+
+func TestLoadDevMode(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/testdb?sslmode=disable")
+	t.Setenv("DEV_MODE", "true")
+	t.Setenv("OPENAPI_SPEC_PATH", "/openapi.yaml")
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.True(t, cfg.DevMode)
+	assert.Equal(t, "/openapi.yaml", cfg.OpenAPISpecPath)
+}
+
+func TestLoadDevModeDisabledByDefault(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://test:test@localhost:5432/testdb?sslmode=disable")
+	t.Setenv("DEV_MODE", "")
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.False(t, cfg.DevMode)
+	assert.Equal(t, "api/openapi.yaml", cfg.OpenAPISpecPath)
+}

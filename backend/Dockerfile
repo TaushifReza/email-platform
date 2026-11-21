@@ -17,6 +17,7 @@ FROM alpine:3.22
 RUN apk add --no-cache ca-certificates tzdata
 
 COPY --from=build /out/service /usr/local/bin/service
+COPY api/openapi.yaml /openapi.yaml
 
 USER nobody
 ENTRYPOINT ["/usr/local/bin/service"]

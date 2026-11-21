@@ -16,6 +16,8 @@ const (
 	defaultStorageName   = "email-platform"
 	defaultSMTPPort      = 587
 	defaultSenderEmail   = "noreply@example.com"
+	defaultDevMode       = false
+	defaultOpenAPISpec   = "api/openapi.yaml"
 	secretFileSuffix     = "_FILE"
 	trimSecretWhitespace = true
 )
@@ -45,6 +47,8 @@ type Config struct {
 	SMTPUsername         string
 	SMTPPassword         string
 	EmailFrom            string
+	DevMode              bool
+	OpenAPISpecPath      string
 }
 
 // Load reads configuration from environment variables and *_FILE secrets.
@@ -67,6 +71,8 @@ func Load() (Config, error) {
 		SMTPUsername:         getEnv("SMTP_USERNAME", ""),
 		SMTPPassword:         getEnv("SMTP_PASSWORD", ""),
 		EmailFrom:            getEnv("EMAIL_FROM", defaultSenderEmail),
+		DevMode:              getEnvBool("DEV_MODE", defaultDevMode),
+		OpenAPISpecPath:      getEnv("OPENAPI_SPEC_PATH", defaultOpenAPISpec),
 	}
 
 	secrets := []struct {
@@ -154,6 +160,21 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func getEnvBool(key string, defaultValue bool) bool {
+	value, exists := os.LookupEnv(key)
+	if !exists || strings.TrimSpace(value) == "" {
+		return defaultValue
+	}
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return defaultValue
+	}
 }
 
 func getEnvInt(key string, defaultValue int) int {

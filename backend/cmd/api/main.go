@@ -93,6 +93,9 @@ func main() {
 			identityService,
 			logger),
 	)
+	if cfg.DevMode {
+		api.RegisterDevRoutes(router, cfg.OpenAPISpecPath)
+	}
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
