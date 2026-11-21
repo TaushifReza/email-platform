@@ -65,6 +65,6 @@ func TestReadyEndpointDoesNotFailWhenRedisIsDown(t *testing.T) {
 func testRouter(db, redis health.Pinger) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	RegisterHandlers(router, NewHealthServer(health.New(db, redis)))
+	RegisterHandlers(router, NewServer(health.New(db, redis), nil, nil))
 	return router
 }

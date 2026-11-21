@@ -63,7 +63,7 @@ belong to later work packages and were not implemented here.
   and schema/role checks. `make test-module M=platform` and `make ci` pass.
   Deviation: `operator_sessions` is separate from `sessions` so every tenant
   table keeps `organization_id NOT NULL`. Open: pre-auth login lookup under
-  forced RLS is OQ-12. Full `make dev-up` was not run because host port 8080 is
+  forced RLS is OQ-12. Full `make dev-up` was not run because host port 8081 is
   occupied by an unrelated container; migrate/api/worker were verified directly.
 - 2026-11-20 WP02.1 handoff: schema migrations 0002-0006, forced RLS, composite
   FKs, role grants, DSN split and dev bootstrap are complete.
@@ -71,7 +71,7 @@ belong to later work packages and were not implemented here.
   `make lint` and `make ci` pass; migrate/api/worker start on `email_app` and RLS
   fails closed without `app.org_id`. Next: WP02.2 `WithOrg` helper and catalog
   guard test. Unfinished: OQ-12 pre-auth login lookup; full `make dev-up` blocked
-  by host port 8080; no commit.
+  by host port 8081; no commit.
 - 2026-11-19 WP01 remediation: started on `wp01-foundations`. Consolidated the Go
   backend and `tools/fakesmtp` into the root module, removed the duplicate root
   `internal/` scaffold, replaced the Makefile with real `test`, `lint`, `gen`,
@@ -93,3 +93,7 @@ belong to later work packages and were not implemented here.
   Next: WP02.3 password hashing, login, lockout and rate limits. Committed;
   handler/service/repository and frontend layering documented in
   `docs/technical-design/01-architecture.md`.
+
+- 2026-11-21 WP02.3: argon2id hasher and policy, common-password list, SECURITY DEFINER pre-auth lookup, login service, lockout, Redis rate limiter, uniform errors, and POST /auth/login contract. Tests cover AUTH-01/02/04, SEC-12/16, BR-01, AC-SEC-01. `make test-module M=identity`, `make test-module M=platform/ratelimit`, `make test-module M=platform/db`, `make test-module M=api`, `make ci` pass. Next: WP02.4 sessions, cookies, CSRF and trusted-proxy IP. Open: OQ-13 lockout/rate-limit defaults; per-IP limiting, login audit events, and session issuance deferred to WP02.4/WP02.8; operator login not yet covered.
+
+- 2026-11-21 WP02.3: argon2id hasher/policy, common-password list, SECURITY DEFINER pre-auth lookup, login service, lockout, Redis rate limiter, uniform errors, POST /auth/login. Tests: identity, ratelimit, db, api modules and REDIS_URL make ci plus redflags all passed. Next: WP02.4 sessions, cookies, CSRF, trusted-proxy IP. Unfinished: per-IP limiting, login audit, session issuance, operator login, OQ-13.

@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+
+	"github.com/TaushifReza/email-platform/backend/internal/platform/db/sqlc"
 )
 
 // ErrNoOrganization is returned when a tenant transaction is requested
@@ -35,10 +37,10 @@ func (d *DB) WithOrg(ctx context.Context, orgID string, fn func(*sql.Tx) error) 
 		}
 	}()
 
-	if _, err := tx.ExecContext(ctx, "SET LOCAL ROLE email_app"); err != nil {
+	if err := sqlc.New(tx).SetAppRole(ctx); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, "SELECT set_config('app.org_id', $1, true)", orgID); err != nil {
+	if err := sqlc.New(tx).SetOrgID(ctx, orgID); err != nil {
 		return err
 	}
 	if err := fn(tx); err != nil {

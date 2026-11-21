@@ -7,6 +7,33 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Defines values for ErrorResponseError.
+const (
+	InternalError      ErrorResponseError = "internal_error"
+	InvalidCredentials ErrorResponseError = "invalid_credentials"
+	InvalidRequest     ErrorResponseError = "invalid_request"
+	RateLimited        ErrorResponseError = "rate_limited"
+	Unavailable        ErrorResponseError = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the ErrorResponseError enum.
+func (e ErrorResponseError) Valid() bool {
+	switch e {
+	case InternalError:
+		return true
+	case InvalidCredentials:
+		return true
+	case InvalidRequest:
+		return true
+	case RateLimited:
+		return true
+	case Unavailable:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ReadyResponseStatus.
 const (
 	Degraded ReadyResponseStatus = "degraded"
@@ -25,10 +52,29 @@ func (e ReadyResponseStatus) Valid() bool {
 	}
 }
 
+// ErrorResponse defines model for ErrorResponse.
+type ErrorResponse struct {
+	Error ErrorResponseError `json:"error"`
+}
+
+// ErrorResponseError defines model for ErrorResponse.Error.
+type ErrorResponseError string
+
 // HealthResponse defines model for HealthResponse.
 type HealthResponse struct {
 	// Status Example: ok
 	Status string `json:"status"`
+}
+
+// LoginRequest defines model for LoginRequest.
+type LoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+// LoginResponse defines model for LoginResponse.
+type LoginResponse struct {
+	MfaRequired bool `json:"mfa_required"`
 }
 
 // ReadyResponse defines model for ReadyResponse.
@@ -48,8 +94,14 @@ type ReadyResponse struct {
 // ReadyResponseStatus Example: ok
 type ReadyResponseStatus string
 
+// LoginJSONRequestBody defines body for Login for application/json ContentType.
+type LoginJSONRequestBody = LoginRequest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Login Authenticate with email and password
+	// (POST /auth/login)
+	Login(c *gin.Context)
 	// GetHealth Liveness check
 	// (GET /healthz)
 	GetHealth(c *gin.Context)
@@ -66,6 +118,19 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(c *gin.Context)
+
+// Login operation middleware
+func (siw *ServerInterfaceWrapper) Login(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Login(c)
+}
 
 // GetHealth operation middleware
 func (siw *ServerInterfaceWrapper) GetHealth(c *gin.Context) {
@@ -122,4 +187,5 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 
 	router.GET(options.BaseURL+"/healthz", wrapper.GetHealth)
 	router.GET(options.BaseURL+"/readyz", wrapper.GetReady)
+	router.POST(options.BaseURL+"/auth/login", wrapper.Login)
 }

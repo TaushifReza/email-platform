@@ -9,6 +9,7 @@ on:
 env:
   GO_VERSION: "1.26.x"
   DATABASE_URL: postgres://postgres:ci@localhost:5432/email_platform_test?sslmode=disable
+  REDIS_URL: redis://localhost:6379
 
 jobs:
   test:
@@ -23,6 +24,15 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5

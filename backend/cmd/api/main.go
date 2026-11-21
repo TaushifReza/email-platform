@@ -11,10 +11,13 @@ import (
 	"time"
 
 	"github.com/TaushifReza/email-platform/backend/api"
+	"github.com/TaushifReza/email-platform/backend/internal/identity"
+	"github.com/TaushifReza/email-platform/backend/internal/platform/clock"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/config"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/db"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/health"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/logging"
+	"github.com/TaushifReza/email-platform/backend/internal/platform/ratelimit"
 	"github.com/gin-gonic/gin"
 	redis "github.com/go-redis/redis/v8"
 	"go.uber.org/zap"
@@ -69,10 +72,27 @@ func main() {
 		redisHealth = redisPinger{client: redisClient}
 	}
 
+	identityRepo := identity.NewRepository(pool)
+	hasher, err := identity.NewHasher(identity.DefaultArgon2Params)
+	if err != nil {
+		logger.Fatal("Failed to create password hasher", zap.Error(err))
+	}
+	var loginLimiter identity.RateLimiter
+	if redisClient != nil {
+		loginLimiter = ratelimit.New(ratelimit.NewRedisCounter(redisClient))
+	}
+	identityService := identity.NewService(identityRepo, hasher,
+		loginLimiter, clock.System{}, identity.DefaultLockoutPolicy)
+
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(gin.Recovery())
-	api.RegisterHandlers(router, api.NewHealthServer(health.New(pool, redisHealth)))
+	api.RegisterHandlers(
+		router,
+		api.NewServer(health.New(pool, redisHealth),
+			identityService,
+			logger),
+	)
 
 	srv := &http.Server{
 		Addr:              cfg.ListenAddr,
