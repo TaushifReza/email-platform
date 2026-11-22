@@ -44,14 +44,15 @@ type ClientInfo struct {
 
 // SessionResult describes a newly created session.
 type SessionResult struct {
-	Token             string
-	UserID            string
-	OrganizationID    string
-	Role              string
-	MFARequired       bool
-	MFAVerified       bool
-	IdleExpiresAt     time.Time
-	AbsoluteExpiresAt time.Time
+	Token                 string
+	UserID                string
+	OrganizationID        string
+	Role                  string
+	MFARequired           bool
+	MFAEnrollmentRequired bool
+	MFAVerified           bool
+	IdleExpiresAt         time.Time
+	AbsoluteExpiresAt     time.Time
 }
 
 // SessionRecord is the looked-up session data.
@@ -175,14 +176,15 @@ func IssueSession(ctx context.Context, repo SessionRepository, clk clock.Clock, 
 		return SessionResult{}, err
 	}
 	return SessionResult{
-		Token:             raw,
-		UserID:            creds.UserID,
-		OrganizationID:    creds.OrganizationID,
-		Role:              creds.Role,
-		MFARequired:       creds.MFARequired,
-		MFAVerified:       mfaVerified,
-		IdleExpiresAt:     idleExp,
-		AbsoluteExpiresAt: absExp,
+		Token:                 raw,
+		UserID:                creds.UserID,
+		OrganizationID:        creds.OrganizationID,
+		Role:                  creds.Role,
+		MFARequired:           creds.MFARequired,
+		MFAEnrollmentRequired: creds.MFAEnrollmentRequired,
+		MFAVerified:           mfaVerified,
+		IdleExpiresAt:         idleExp,
+		AbsoluteExpiresAt:     absExp,
 	}, nil
 }
 

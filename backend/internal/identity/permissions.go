@@ -146,6 +146,13 @@ func Authorize(actor Actor, req Request) error {
 	return nil
 }
 
+// PlatformAdminActor builds the Actor for an operator authenticated by the
+// trusted identity provider. Operators have no organization; their identity
+// comes from the trusted header plus the operator allowlist, never from input.
+func PlatformAdminActor(operatorID string) Actor {
+	return Actor{UserID: operatorID, Role: rolePlatformAdmin}
+}
+
 // validRoles is the set of roles a user account may hold.
 func validRole(role string) bool {
 	switch role {

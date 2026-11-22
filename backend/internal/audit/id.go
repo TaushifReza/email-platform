@@ -1,0 +1,18 @@
+package audit
+
+import (
+	"crypto/rand"
+	"fmt"
+)
+
+// newID generates a UUID for an audit row. The writer owns row identity so
+// callers cannot forget it; audit rows are append-only and need a stable id.
+func newID() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("audit: generate id: %w", err)
+	}
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
+}

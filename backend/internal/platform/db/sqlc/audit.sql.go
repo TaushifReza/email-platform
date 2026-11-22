@@ -7,6 +7,7 @@ package sqlc
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"time"
 )
@@ -34,16 +35,16 @@ INSERT INTO audit_log (
 
 type AppendAuditEntryParams struct {
 	ID             string
-	OrganizationID string
+	OrganizationID sql.NullString
 	ActorType      string
-	ActorID        string
-	ActorRole      string
+	ActorID        sql.NullString
+	ActorRole      sql.NullString
 	Action         string
-	TargetType     string
-	TargetID       string
+	TargetType     sql.NullString
+	TargetID       sql.NullString
 	Outcome        string
-	SourceIp       string
-	Client         string
+	SourceIp       sql.NullString
+	Client         sql.NullString
 	Details        json.RawMessage
 	CreatedAt      time.Time
 }

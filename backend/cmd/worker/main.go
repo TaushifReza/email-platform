@@ -31,7 +31,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := db.New(ctx, cfg.DatabaseURL)
+	pool, err := db.NewWithSystem(ctx, cfg.DatabaseURL, cfg.SystemDatabaseURL)
 	if err != nil {
 		logger.Fatal("Failed to connect to database", zap.Error(err))
 	}

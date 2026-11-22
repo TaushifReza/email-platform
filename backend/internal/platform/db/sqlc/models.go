@@ -56,7 +56,7 @@ type Operator struct {
 	ID                 string
 	Email              string
 	EmailNormalized    sql.NullString
-	PasswordHash       string
+	PasswordHash       sql.NullString
 	TotpSeedEncrypted  []byte
 	TotpKeyID          sql.NullString
 	TotpEnrolledAt     sql.NullTime

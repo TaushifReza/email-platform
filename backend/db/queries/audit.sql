@@ -4,16 +4,16 @@ INSERT INTO audit_log (
     target_type, target_id, outcome, source_ip, client, details, created_at
 ) VALUES (
     sqlc.arg(id)::uuid,
-    sqlc.arg(organization_id)::uuid,
+    sqlc.narg(organization_id)::uuid,
     sqlc.arg(actor_type)::text,
-    sqlc.arg(actor_id)::uuid,
-    sqlc.arg(actor_role)::text,
+    sqlc.narg(actor_id)::uuid,
+    sqlc.narg(actor_role)::text,
     sqlc.arg(action)::text,
-    sqlc.arg(target_type)::text,
-    sqlc.arg(target_id)::uuid,
+    sqlc.narg(target_type)::text,
+    sqlc.narg(target_id)::uuid,
     sqlc.arg(outcome)::text,
-    sqlc.arg(source_ip)::inet,
-    sqlc.arg(client)::text,
+    sqlc.narg(source_ip)::inet,
+    sqlc.narg(client)::text,
     sqlc.arg(details)::jsonb,
     sqlc.arg(created_at)::timestamptz
 );

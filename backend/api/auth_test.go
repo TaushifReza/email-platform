@@ -65,6 +65,21 @@ func TestLoginSuccess(t *testing.T) {
 	assert.True(t, resp.MfaRequired)
 }
 
+func TestLoginEnrollmentRequired(t *testing.T) {
+	fake := &fakeAuthService{result: identity.SessionResult{MFAEnrollmentRequired: true, Token: "tok", AbsoluteExpiresAt: time.Now().Add(time.Hour)}} //nolint:lll
+	router := testAuthRouter(fake)
+	rec := httptest.NewRecorder()
+	const body = `{"email":"a@b.com","password":"secret"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Csrf-Token", "1")
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	var resp LoginResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.True(t, resp.MfaEnrollmentRequired)
+}
+
 func TestLoginInvalidCredentials(t *testing.T) {
 	fake := &fakeAuthService{err: identity.ErrInvalidCredentials}
 	router := testAuthRouter(fake)

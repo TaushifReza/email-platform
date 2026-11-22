@@ -9,19 +9,20 @@ import (
 )
 
 const (
-	defaultListenAddr    = ":8080"
-	defaultLogLevel      = "info"
-	defaultRedisURL      = "redis://localhost:6379"
-	defaultStorageURL    = "http://localhost:9000"
-	defaultStorageName   = "email-platform"
-	defaultSMTPPort      = 587
-	defaultSenderEmail   = "noreply@example.com"
-	defaultAppBaseURL    = "http://localhost:8081"
-	defaultSMTPTLSMode   = "starttls"
-	defaultDevMode       = false
-	defaultOpenAPISpec   = "api/openapi.yaml"
-	secretFileSuffix     = "_FILE"
-	trimSecretWhitespace = true
+	defaultListenAddr             = ":8080"
+	defaultLogLevel               = "info"
+	defaultRedisURL               = "redis://localhost:6379"
+	defaultStorageURL             = "http://localhost:9000"
+	defaultStorageName            = "email-platform"
+	defaultSMTPPort               = 587
+	defaultSenderEmail            = "noreply@example.com"
+	defaultAppBaseURL             = "http://localhost:8081"
+	defaultSMTPTLSMode            = "starttls"
+	defaultDevMode                = false
+	defaultOpenAPISpec            = "api/openapi.yaml"
+	defaultOperatorIdentityHeader = "Cf-Access-Authenticated-User-Email"
+	secretFileSuffix              = "_FILE"
+	trimSecretWhitespace          = true
 )
 
 var (
@@ -34,27 +35,29 @@ var (
 
 // Config holds the application configuration.
 type Config struct {
-	ListenAddr           string
-	LogLevel             string
-	DatabaseURL          string
-	MigrationDatabaseURL string
-	RedisURL             string
-	StorageEndpoint      string
-	StorageBucket        string
-	StorageAccessKey     string
-	StorageSecretKey     string
-	MasterKey            []byte
-	SMTPHost             string
-	SMTPPort             int
-	SMTPUsername         string
-	SMTPPassword         string
-	SMTPTLSMode          string
-	EmailFrom            string
-	AppBaseURL           string
-	DevMode              bool
-	OpenAPISpecPath      string
-	TrustedProxyCIDRs    string
-	CookieSecure         bool
+	ListenAddr             string
+	LogLevel               string
+	DatabaseURL            string
+	MigrationDatabaseURL   string
+	SystemDatabaseURL      string
+	RedisURL               string
+	StorageEndpoint        string
+	StorageBucket          string
+	StorageAccessKey       string
+	StorageSecretKey       string
+	MasterKey              []byte
+	SMTPHost               string
+	SMTPPort               int
+	SMTPUsername           string
+	SMTPPassword           string
+	SMTPTLSMode            string
+	EmailFrom              string
+	AppBaseURL             string
+	DevMode                bool
+	OpenAPISpecPath        string
+	TrustedProxyCIDRs      string
+	OperatorIdentityHeader string
+	CookieSecure           bool
 }
 
 // Load reads configuration from environment variables and *_FILE secrets.
@@ -62,27 +65,29 @@ type Config struct {
 // Storage and SMTP settings are validated by the services that use them.
 func Load() (Config, error) {
 	cfg := Config{
-		ListenAddr:           getEnv("LISTEN_ADDR", defaultListenAddr),
-		LogLevel:             getEnv("LOG_LEVEL", defaultLogLevel),
-		DatabaseURL:          getEnv("DATABASE_URL", ""),
-		MigrationDatabaseURL: getEnv("MIGRATION_DATABASE_URL", ""),
-		RedisURL:             getEnv("REDIS_URL", defaultRedisURL),
-		StorageEndpoint:      getEnv("STORAGE_ENDPOINT", defaultStorageURL),
-		StorageBucket:        getEnv("STORAGE_BUCKET", defaultStorageName),
-		StorageAccessKey:     getEnv("STORAGE_ACCESS_KEY", ""),
-		StorageSecretKey:     getEnv("STORAGE_SECRET_KEY", ""),
-		MasterKey:            []byte(getEnv("MASTER_KEY", "")),
-		SMTPHost:             getEnv("SMTP_HOST", ""),
-		SMTPPort:             getEnvInt("SMTP_PORT", defaultSMTPPort),
-		SMTPUsername:         getEnv("SMTP_USERNAME", ""),
-		SMTPPassword:         getEnv("SMTP_PASSWORD", ""),
-		SMTPTLSMode:          getEnv("SMTP_TLS_MODE", defaultSMTPTLSMode),
-		EmailFrom:            getEnv("EMAIL_FROM", defaultSenderEmail),
-		AppBaseURL:           getEnv("APP_BASE_URL", defaultAppBaseURL),
-		DevMode:              getEnvBool("DEV_MODE", defaultDevMode),
-		OpenAPISpecPath:      getEnv("OPENAPI_SPEC_PATH", defaultOpenAPISpec),
-		TrustedProxyCIDRs:    getEnv("TRUSTED_PROXY_CIDRS", ""),
-		CookieSecure:         getEnvBool("COOKIE_SECURE", true),
+		ListenAddr:             getEnv("LISTEN_ADDR", defaultListenAddr),
+		LogLevel:               getEnv("LOG_LEVEL", defaultLogLevel),
+		DatabaseURL:            getEnv("DATABASE_URL", ""),
+		MigrationDatabaseURL:   getEnv("MIGRATION_DATABASE_URL", ""),
+		SystemDatabaseURL:      getEnv("SYSTEM_DATABASE_URL", ""),
+		RedisURL:               getEnv("REDIS_URL", defaultRedisURL),
+		StorageEndpoint:        getEnv("STORAGE_ENDPOINT", defaultStorageURL),
+		StorageBucket:          getEnv("STORAGE_BUCKET", defaultStorageName),
+		StorageAccessKey:       getEnv("STORAGE_ACCESS_KEY", ""),
+		StorageSecretKey:       getEnv("STORAGE_SECRET_KEY", ""),
+		MasterKey:              []byte(getEnv("MASTER_KEY", "")),
+		SMTPHost:               getEnv("SMTP_HOST", ""),
+		SMTPPort:               getEnvInt("SMTP_PORT", defaultSMTPPort),
+		SMTPUsername:           getEnv("SMTP_USERNAME", ""),
+		SMTPPassword:           getEnv("SMTP_PASSWORD", ""),
+		SMTPTLSMode:            getEnv("SMTP_TLS_MODE", defaultSMTPTLSMode),
+		EmailFrom:              getEnv("EMAIL_FROM", defaultSenderEmail),
+		AppBaseURL:             getEnv("APP_BASE_URL", defaultAppBaseURL),
+		DevMode:                getEnvBool("DEV_MODE", defaultDevMode),
+		OpenAPISpecPath:        getEnv("OPENAPI_SPEC_PATH", defaultOpenAPISpec),
+		TrustedProxyCIDRs:      getEnv("TRUSTED_PROXY_CIDRS", ""),
+		OperatorIdentityHeader: getEnv("OPERATOR_IDENTITY_HEADER", defaultOperatorIdentityHeader),
+		CookieSecure:           getEnvBool("COOKIE_SECURE", true),
 	}
 
 	secrets := []struct {
@@ -91,6 +96,7 @@ func Load() (Config, error) {
 	}{
 		{"DATABASE_URL_FILE", &cfg.DatabaseURL},
 		{"MIGRATION_DATABASE_URL_FILE", &cfg.MigrationDatabaseURL},
+		{"SYSTEM_DATABASE_URL_FILE", &cfg.SystemDatabaseURL},
 		{"STORAGE_ACCESS_KEY_FILE", &cfg.StorageAccessKey},
 		{"STORAGE_SECRET_KEY_FILE", &cfg.StorageSecretKey},
 		{"SMTP_PASSWORD_FILE", &cfg.SMTPPassword},
@@ -114,6 +120,9 @@ func Load() (Config, error) {
 
 	if cfg.MigrationDatabaseURL == "" {
 		cfg.MigrationDatabaseURL = cfg.DatabaseURL
+	}
+	if cfg.SystemDatabaseURL == "" {
+		cfg.SystemDatabaseURL = cfg.MigrationDatabaseURL
 	}
 
 	if err := cfg.ValidateDatabase(); err != nil {
@@ -227,4 +236,12 @@ func readSecret(fileKey string) (string, error) {
 // SecretFileSuffix is the suffix used for file-backed secrets.
 func SecretFileSuffix() string {
 	return secretFileSuffix
+}
+
+// OperatorHeader returns the configured identity header with a safe default.
+func (c Config) OperatorHeader() string {
+	if strings.TrimSpace(c.OperatorIdentityHeader) == "" {
+		return defaultOperatorIdentityHeader
+	}
+	return c.OperatorIdentityHeader
 }

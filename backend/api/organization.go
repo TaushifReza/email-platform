@@ -94,9 +94,16 @@ func toAPIOrganization(o tenancy.Organization) Organization {
 	rd := o.RetentionDays
 	sq := o.StorageQuotaBytes
 	ce := o.CapsEnabled
-	return Organization{
+	out := Organization{
 		Id: &id, Name: &name, DefaultSenderName: &dsn, DefaultReplyTo: &dr,
 		TimeZone: &tz, Status: &status, RequireApproval: &ra, RetentionDays: &rd,
 		StorageQuotaBytes: &sq, CapsEnabled: &ce,
 	}
+	if o.HasDailyEmailCap {
+		out.DailyEmailCap = &o.DailyEmailCap
+	}
+	if o.HasCampaignRecipientCap {
+		out.CampaignRecipientCap = &o.CampaignRecipientCap
+	}
+	return out
 }

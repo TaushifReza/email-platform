@@ -1,0 +1,51 @@
+package platformadmin
+
+import (
+	"context"
+
+	"github.com/TaushifReza/email-platform/backend/internal/audit"
+	"github.com/TaushifReza/email-platform/backend/internal/tenancy"
+)
+
+// Operator is an identity asserted by the trusted platform identity provider.
+// It carries no secret material in the application.
+type Operator struct {
+	ID    string
+	Email string
+}
+
+// Page bounds an operator list query.
+type Page struct {
+	Limit  int
+	Offset int
+}
+
+// CreateOrganizationInput is the operator-facing organization creation input.
+type CreateOrganizationInput struct {
+	Name              string
+	DefaultSenderName string
+	DefaultReplyTo    string
+	TimeZone          string
+}
+
+// LimitsInput holds the per-organization quota and sending caps (ADM-01).
+type LimitsInput struct {
+	StorageQuotaBytes    int64
+	CapsEnabled          bool
+	DailyEmailCap        int
+	CampaignRecipientCap int
+}
+
+// Repository owns all operator SQL. Implementations must run writes in a
+// transaction together with the audit entry.
+type Repository interface {
+	LookupOperatorByEmail(ctx context.Context, email string) (Operator, error)
+	CreateOperator(ctx context.Context, id, email string) (bool, error)
+	ListOrganizations(ctx context.Context, page Page) ([]tenancy.Organization, error)
+	CreateOrganization(ctx context.Context, id string, in CreateOrganizationInput,
+		entry audit.Entry) (tenancy.Organization, error)
+	SetOrganizationStatus(ctx context.Context, orgID, expected, next string, entry audit.Entry) (bool, error)
+	UpdateOrganizationLimits(ctx context.Context, orgID string, in LimitsInput,
+		entry audit.Entry) (tenancy.Organization, error)
+	ListOperatorAudit(ctx context.Context, page Page) ([]audit.Entry, error)
+}

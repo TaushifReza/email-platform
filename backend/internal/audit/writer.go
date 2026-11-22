@@ -38,6 +38,13 @@ func (w *Writer) Append(ctx context.Context, tx *sql.Tx, e Entry) error {
 }
 
 func Append(ctx context.Context, tx *sql.Tx, e Entry) error {
+	if e.ID == "" {
+		id, err := newID()
+		if err != nil {
+			return err
+		}
+		e.ID = id
+	}
 	if e.At.IsZero() {
 		e.At = time.Now().UTC()
 	}
@@ -54,17 +61,21 @@ func Append(ctx context.Context, tx *sql.Tx, e Entry) error {
 	}
 	return sqlc.New(tx).AppendAuditEntry(ctx, sqlc.AppendAuditEntryParams{
 		ID:             e.ID,
-		OrganizationID: e.OrganizationID,
+		OrganizationID: nullString(e.OrganizationID),
 		ActorType:      e.ActorType,
-		ActorID:        e.ActorID,
-		ActorRole:      e.ActorRole,
+		ActorID:        nullString(e.ActorID),
+		ActorRole:      nullString(e.ActorRole),
 		Action:         e.Action,
-		TargetType:     e.TargetType,
-		TargetID:       e.TargetID,
+		TargetType:     nullString(e.TargetType),
+		TargetID:       nullString(e.TargetID),
 		Outcome:        e.Outcome,
-		SourceIp:       e.SourceIP,
-		Client:         e.Client,
+		SourceIp:       nullString(e.SourceIP),
+		Client:         nullString(e.Client),
 		Details:        json.RawMessage(b),
 		CreatedAt:      e.At,
 	})
+}
+
+func nullString(s string) sql.NullString {
+	return sql.NullString{String: s, Valid: s != ""}
 }

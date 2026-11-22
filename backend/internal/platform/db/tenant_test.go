@@ -111,8 +111,8 @@ func TestAC_SEC_01_WithOrgBlocksCrossTenantReadWrite(t *testing.T) {
 	err = d.WithOrg(ctx, orgA, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx,
 			`INSERT INTO users (id, organization_id, email, role, status)
-			 VALUES (gen_random_uuid(), $1, 'cross@example.com', 'viewer', 'active')`,
-			orgB)
+			 VALUES (gen_random_uuid(), $1, $2, 'viewer', 'active')`,
+			orgB, fmt.Sprintf("cross-%s@example.com", orgA))
 		return err
 	})
 	require.Error(t, err)

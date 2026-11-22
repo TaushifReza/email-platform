@@ -410,6 +410,200 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  /operator/session:
+    get:
+      operationId: getOperatorSession
+      summary: Identity of the authenticated platform operator
+      responses:
+        '200':
+          description: Operator identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatorSession'
+        '401':
+          description: No trusted operator identity
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Not a registered operator
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /operator/organizations:
+    get:
+      operationId: listOperatorOrganizations
+      summary: List organizations
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Organizations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationList'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    post:
+      operationId: createOperatorOrganization
+      summary: Create an organization and its first owner invitation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganizationRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /operator/organizations/{organizationId}/suspend:
+    post:
+      operationId: suspendOrganization
+      summary: Suspend an organization
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Suspended
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found or wrong state
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /operator/organizations/{organizationId}/reinstate:
+    post:
+      operationId: reinstateOrganization
+      summary: Reinstate a suspended organization
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Reinstated
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found or wrong state
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /operator/organizations/{organizationId}/limits:
+    patch:
+      operationId: updateOrganizationLimits
+      summary: Set storage quota and sending caps
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationLimitsUpdate'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /operator/audit:
+    get:
+      operationId: listOperatorAudit
+      summary: Operator-level audit log
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Audit entries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEntryList'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
 components:
   schemas:
     HealthResponse:
@@ -543,6 +737,10 @@ components:
           format: int64
         capsEnabled:
           type: boolean
+        dailyEmailCap:
+          type: integer
+        campaignRecipientCap:
+          type: integer
     OrganizationProfileUpdate:
       type: object
       properties:
@@ -603,6 +801,93 @@ components:
           type: string
         deactivate:
           type: boolean
+    OperatorSession:
+      type: object
+      required: [id, email, role]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+    OrganizationList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Organization'
+        meta:
+          type: object
+          properties:
+            hasMore:
+              type: boolean
+    CreateOrganizationRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        defaultSenderName:
+          type: string
+        defaultReplyTo:
+          type: string
+        timeZone:
+          type: string
+    OrganizationLimitsUpdate:
+      type: object
+      required: [storageQuotaBytes, capsEnabled]
+      properties:
+        storageQuotaBytes:
+          type: integer
+          format: int64
+        capsEnabled:
+          type: boolean
+        dailyEmailCap:
+          type: integer
+        campaignRecipientCap:
+          type: integer
+    AuditEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        actorType:
+          type: string
+        actorId:
+          type: string
+        actorRole:
+          type: string
+        action:
+          type: string
+        targetType:
+          type: string
+        targetId:
+          type: string
+        outcome:
+          type: string
+        sourceIp:
+          type: string
+        client:
+          type: string
+        details:
+          type: object
+        createdAt:
+          type: string
+          format: date-time
+    AuditEntryList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEntry'
+        meta:
+          type: object
+          properties:
+            hasMore:
+              type: boolean
     Problem:
       type: object
       required:

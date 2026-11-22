@@ -6,6 +6,7 @@
 | `api` | JSON API (Gin), sessions, uploads, the public unsubscribe endpoint |
 | `worker` | Imports, attachment processing, scheduler tick, per-provider sender, notifications, purge (M1) |
 | `migrate` | Runs goose migrations then exits |
+| `operator` | CLI that maintains the operator allowlist (`operator create <email>`); no self-signup |
 
 ## Backend layout
 ```
@@ -75,6 +76,9 @@ admin.<domain> behind Cloudflare Access
 postgres, redis: internal docker network only
 worker egress: internet (SMTP) + postgres, redis, rustfs only
 ```
+
+## Operator console
+`admin.<domain>` is a separate hostname behind Cloudflare Access and serves the same static export with an `/admin` route. Cloudflare authenticates the human and sets `Cf-Access-Authenticated-User-Email`; nginx forwards it only on that host. The API accepts that header **only** when the immediate peer is in `TRUSTED_PROXY_CIDRs`, then checks the email against the `operators` allowlist through a `SECURITY DEFINER` lookup. There are no operator passwords, TOTP seeds or app sessions. Every operator action is written to `audit_log` with a null `organization_id`; the operator console reads only those entries (AUD-03). Tenant `WithOrg` isolation is unchanged: operators have no policy reaching tenant content. See `docs/tasks/WP02-operator.md`.
 
 ## Cross-cutting
 - Logging: zap with a redaction layer (passwords, secrets, tokens). Recipient emails masked. Request bodies never logged.

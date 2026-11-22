@@ -9,14 +9,16 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-// DB owns the database handle. Query methods are intentionally not exposed:
-// tenant SQL must run inside WithOrg so row-level security is always scoped.
+// DB owns two database handles: the tenant application role and a dedicated
+// system-role connection for cross-organization work. Query methods are
+// intentionally not exposed: tenant SQL must run inside WithOrg so row-level
+// security is always scoped.
 type DB struct {
-	sql *sql.DB
+	sql    *sql.DB
+	system *sql.DB
 }
 
-// New creates a new database handle from DSN with appropriate settings.
-func New(ctx context.Context, dsn string) (*DB, error) {
+func openPool(ctx context.Context, dsn string) (*sql.DB, error) {
 	sqlDB, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
@@ -31,8 +33,41 @@ func New(ctx context.Context, dsn string) (*DB, error) {
 		_ = sqlDB.Close()
 		return nil, err
 	}
+	return sqlDB, nil
+}
 
-	return &DB{sql: sqlDB}, nil
+// New creates a handle whose system work uses the same DSN. Callers with a
+// separate system role should use NewWithSystem.
+func New(ctx context.Context, dsn string) (*DB, error) {
+	return NewWithSystem(ctx, dsn, dsn)
+}
+
+// NewWithSystem creates tenant and system handles. The system DSN must use a
+// role with the operator/system grants; it must never be the tenant role.
+func NewWithSystem(ctx context.Context, appDSN, systemDSN string) (*DB, error) {
+	if systemDSN == "" {
+		systemDSN = appDSN
+	}
+	app, err := openPool(ctx, appDSN)
+	if err != nil {
+		return nil, err
+	}
+	if systemDSN == appDSN {
+		return &DB{sql: app, system: app}, nil
+	}
+	system, err := openPool(ctx, systemDSN)
+	if err != nil {
+		_ = app.Close()
+		return nil, err
+	}
+	return &DB{sql: app, system: system}, nil
+}
+
+func (d *DB) systemDB() *sql.DB {
+	if d.system != nil {
+		return d.system
+	}
+	return d.sql
 }
 
 // Ping verifies the database is reachable.
@@ -40,7 +75,10 @@ func (d *DB) Ping(ctx context.Context) error {
 	return d.sql.PingContext(ctx)
 }
 
-// Close releases the database handle.
+// Close releases the database handles.
 func (d *DB) Close() error {
+	if d.system != nil && d.system != d.sql {
+		_ = d.system.Close()
+	}
 	return d.sql.Close()
 }

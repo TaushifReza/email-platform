@@ -55,7 +55,7 @@ func (s *AccessService) IssueInvitation(ctx context.Context, actor Actor, email,
 		Kind:           "invitation",
 		Recipient:      email,
 		Subject:        "You have been invited",
-		TextBody:       fmt.Sprintf("You have been invited. Accept: %s/invitations/%s", s.baseURL, token),
+		TextBody:       "You have been invited. Accept: " + invitationURL(s.baseURL, token),
 		NextAttemptAt:  now,
 	}
 	// Store token in invitation via repository? tokenHash stored. Good.
@@ -164,6 +164,10 @@ func sha256Bytes(b string) []byte {
 	out := make([]byte, len(h))
 	copy(out, h[:])
 	return out
+}
+
+func invitationURL(baseURL, token string) string {
+	return fmt.Sprintf("%s/invitations/accept#token=%s", baseURL, token)
 }
 
 func newToken() string {

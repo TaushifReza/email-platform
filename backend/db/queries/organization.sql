@@ -3,10 +3,10 @@ INSERT INTO organizations (id, name, default_sender_name, default_reply_to, time
     require_approval, retention_days, storage_quota_bytes, caps_enabled,
     daily_email_cap, campaign_recipient_cap)
 VALUES (sqlc.arg(id)::uuid, sqlc.arg(name)::text, sqlc.arg(default_sender_name)::text,
-    sqlc.arg(default_reply_to)::text, sqlc.arg(time_zone)::text,
+    sqlc.narg(default_reply_to)::text, sqlc.arg(time_zone)::text,
     sqlc.arg(require_approval)::boolean, sqlc.arg(retention_days)::int,
     sqlc.arg(storage_quota_bytes)::bigint, sqlc.arg(caps_enabled)::boolean,
-    sqlc.arg(daily_email_cap)::int, sqlc.arg(campaign_recipient_cap)::int);
+    sqlc.narg(daily_email_cap)::int, sqlc.narg(campaign_recipient_cap)::int);
 
 -- name: GetOrganization :one
 SELECT id, name, logo_object_key, default_sender_name, default_reply_to, time_zone,
@@ -56,8 +56,8 @@ WHERE id = sqlc.arg(id)::uuid
 UPDATE organizations
 SET storage_quota_bytes = sqlc.arg(storage_quota_bytes)::bigint,
     caps_enabled = sqlc.arg(caps_enabled)::boolean,
-    daily_email_cap = sqlc.arg(daily_email_cap)::int,
-    campaign_recipient_cap = sqlc.arg(campaign_recipient_cap)::int,
+    daily_email_cap = sqlc.narg(daily_email_cap)::int,
+    campaign_recipient_cap = sqlc.narg(campaign_recipient_cap)::int,
     updated_at = now()
 WHERE id = sqlc.arg(id)::uuid
 RETURNING id, name, logo_object_key, default_sender_name, default_reply_to, time_zone,

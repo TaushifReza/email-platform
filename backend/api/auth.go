@@ -38,7 +38,10 @@ func (s *Server) Login(c *gin.Context) {
 	result, err := s.auth.SignIn(c.Request.Context(), identity.LoginRequest{Email: req.Email, Password: req.Password}, info) //nolint:lll
 	if err == nil {
 		setSessionCookie(c.Writer, s.cfg, result.Token, int(time.Until(result.AbsoluteExpiresAt).Seconds()))
-		c.JSON(http.StatusOK, LoginResponse{MfaRequired: result.MFARequired})
+		c.JSON(http.StatusOK, LoginResponse{
+			MfaRequired:           result.MFARequired,
+			MfaEnrollmentRequired: result.MFAEnrollmentRequired,
+		})
 		return
 	}
 

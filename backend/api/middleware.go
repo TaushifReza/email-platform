@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/TaushifReza/email-platform/backend/internal/identity"
+	"github.com/TaushifReza/email-platform/backend/internal/platformadmin"
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,6 +22,9 @@ type AuthService interface {
 // contextKeyActor is the gin context key for the authenticated actor.
 const contextKeyActor = "actor"
 
+// contextKeyOperator is the gin context key for the authenticated operator.
+const contextKeyOperator = "operator"
+
 // ActorFrom returns the authenticated actor, if any.
 func ActorFrom(c *gin.Context) (identity.Actor, bool) {
 	v, ok := c.Get(contextKeyActor)
@@ -29,6 +33,20 @@ func ActorFrom(c *gin.Context) (identity.Actor, bool) {
 	}
 	a, ok := v.(identity.Actor)
 	return a, ok
+}
+
+// OperatorFrom returns the operator identity asserted by the trusted IdP.
+func OperatorFrom(c *gin.Context) (platformadmin.Operator, bool) {
+	v, ok := c.Get(contextKeyOperator)
+	if !ok {
+		return platformadmin.Operator{}, false
+	}
+	op, ok := v.(platformadmin.Operator)
+	return op, ok
+}
+
+func isOperatorPath(path string) bool {
+	return strings.HasPrefix(path, "/operator/")
 }
 
 func isPublicPath(path string) bool {
@@ -63,6 +81,10 @@ func isCSRFExemptPath(path string) bool {
 
 func AuthMiddleware(s *Server) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if isOperatorPath(c.Request.URL.Path) {
+			s.authenticateOperator(c)
+			return
+		}
 		if isPublicPath(c.Request.URL.Path) {
 			c.Next()
 			return

@@ -7,6 +7,7 @@ package sqlc
 
 import (
 	"context"
+	"database/sql"
 )
 
 const createOrganization = `-- name: CreateOrganization :exec
@@ -24,14 +25,14 @@ type CreateOrganizationParams struct {
 	ID                   string
 	Name                 string
 	DefaultSenderName    string
-	DefaultReplyTo       string
+	DefaultReplyTo       sql.NullString
 	TimeZone             string
 	RequireApproval      bool
 	RetentionDays        int32
 	StorageQuotaBytes    int64
 	CapsEnabled          bool
-	DailyEmailCap        int32
-	CampaignRecipientCap int32
+	DailyEmailCap        sql.NullInt32
+	CampaignRecipientCap sql.NullInt32
 }
 
 func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganizationParams) error {
@@ -151,8 +152,8 @@ RETURNING id, name, logo_object_key, default_sender_name, default_reply_to, time
 type SetOrganizationLimitsParams struct {
 	StorageQuotaBytes    int64
 	CapsEnabled          bool
-	DailyEmailCap        int32
-	CampaignRecipientCap int32
+	DailyEmailCap        sql.NullInt32
+	CampaignRecipientCap sql.NullInt32
 	ID                   string
 }
 

@@ -6,6 +6,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/oapi-codegen/runtime"
@@ -89,6 +90,38 @@ type AcceptInvitationRequest struct {
 	Token    string `json:"token"`
 }
 
+// AuditEntry defines model for AuditEntry.
+type AuditEntry struct {
+	Action     *string                 `json:"action,omitempty"`
+	ActorId    *string                 `json:"actorId,omitempty"`
+	ActorRole  *string                 `json:"actorRole,omitempty"`
+	ActorType  *string                 `json:"actorType,omitempty"`
+	Client     *string                 `json:"client,omitempty"`
+	CreatedAt  *time.Time              `json:"createdAt,omitempty"`
+	Details    *map[string]interface{} `json:"details,omitempty"`
+	Id         *string                 `json:"id,omitempty"`
+	Outcome    *string                 `json:"outcome,omitempty"`
+	SourceIp   *string                 `json:"sourceIp,omitempty"`
+	TargetId   *string                 `json:"targetId,omitempty"`
+	TargetType *string                 `json:"targetType,omitempty"`
+}
+
+// AuditEntryList defines model for AuditEntryList.
+type AuditEntryList struct {
+	Data *[]AuditEntry `json:"data,omitempty"`
+	Meta *struct {
+		HasMore *bool `json:"hasMore,omitempty"`
+	} `json:"meta,omitempty"`
+}
+
+// CreateOrganizationRequest defines model for CreateOrganizationRequest.
+type CreateOrganizationRequest struct {
+	DefaultReplyTo    *string `json:"defaultReplyTo,omitempty"`
+	DefaultSenderName *string `json:"defaultSenderName,omitempty"`
+	Name              string  `json:"name"`
+	TimeZone          *string `json:"timeZone,omitempty"`
+}
+
 // FieldError defines model for FieldError.
 type FieldError struct {
 	Code    string `json:"code"`
@@ -136,18 +169,43 @@ type MFAVerifyRequest struct {
 	Code string `json:"code"`
 }
 
+// OperatorSession defines model for OperatorSession.
+type OperatorSession struct {
+	Email string `json:"email"`
+	Id    string `json:"id"`
+	Role  string `json:"role"`
+}
+
 // Organization defines model for Organization.
 type Organization struct {
-	CapsEnabled       *bool   `json:"capsEnabled,omitempty"`
-	DefaultReplyTo    *string `json:"defaultReplyTo,omitempty"`
-	DefaultSenderName *string `json:"defaultSenderName,omitempty"`
-	Id                *string `json:"id,omitempty"`
-	Name              *string `json:"name,omitempty"`
-	RequireApproval   *bool   `json:"requireApproval,omitempty"`
-	RetentionDays     *int    `json:"retentionDays,omitempty"`
-	Status            *string `json:"status,omitempty"`
-	StorageQuotaBytes *int64  `json:"storageQuotaBytes,omitempty"`
-	TimeZone          *string `json:"timeZone,omitempty"`
+	CampaignRecipientCap *int    `json:"campaignRecipientCap,omitempty"`
+	CapsEnabled          *bool   `json:"capsEnabled,omitempty"`
+	DailyEmailCap        *int    `json:"dailyEmailCap,omitempty"`
+	DefaultReplyTo       *string `json:"defaultReplyTo,omitempty"`
+	DefaultSenderName    *string `json:"defaultSenderName,omitempty"`
+	Id                   *string `json:"id,omitempty"`
+	Name                 *string `json:"name,omitempty"`
+	RequireApproval      *bool   `json:"requireApproval,omitempty"`
+	RetentionDays        *int    `json:"retentionDays,omitempty"`
+	Status               *string `json:"status,omitempty"`
+	StorageQuotaBytes    *int64  `json:"storageQuotaBytes,omitempty"`
+	TimeZone             *string `json:"timeZone,omitempty"`
+}
+
+// OrganizationLimitsUpdate defines model for OrganizationLimitsUpdate.
+type OrganizationLimitsUpdate struct {
+	CampaignRecipientCap *int  `json:"campaignRecipientCap,omitempty"`
+	CapsEnabled          bool  `json:"capsEnabled"`
+	DailyEmailCap        *int  `json:"dailyEmailCap,omitempty"`
+	StorageQuotaBytes    int64 `json:"storageQuotaBytes"`
+}
+
+// OrganizationList defines model for OrganizationList.
+type OrganizationList struct {
+	Data *[]Organization `json:"data,omitempty"`
+	Meta *struct {
+		HasMore *bool `json:"hasMore,omitempty"`
+	} `json:"meta,omitempty"`
 }
 
 // OrganizationPolicyUpdate defines model for OrganizationPolicyUpdate.
@@ -247,6 +305,18 @@ type UserList struct {
 	} `json:"meta,omitempty"`
 }
 
+// ListOperatorAuditParams defines parameters for ListOperatorAudit.
+type ListOperatorAuditParams struct {
+	Limit  *int `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListOperatorOrganizationsParams defines parameters for ListOperatorOrganizations.
+type ListOperatorOrganizationsParams struct {
+	Limit  *int `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // AcceptInvitationJSONRequestBody defines body for AcceptInvitation for application/json ContentType.
 type AcceptInvitationJSONRequestBody = AcceptInvitationRequest
 
@@ -267,6 +337,12 @@ type RequestPasswordResetJSONRequestBody = PasswordResetRequest
 
 // StepUpJSONRequestBody defines body for StepUp for application/json ContentType.
 type StepUpJSONRequestBody = StepUpRequest
+
+// CreateOperatorOrganizationJSONRequestBody defines body for CreateOperatorOrganization for application/json ContentType.
+type CreateOperatorOrganizationJSONRequestBody = CreateOrganizationRequest
+
+// UpdateOrganizationLimitsJSONRequestBody defines body for UpdateOrganizationLimits for application/json ContentType.
+type UpdateOrganizationLimitsJSONRequestBody = OrganizationLimitsUpdate
 
 // UpdateOrganizationJSONRequestBody defines body for UpdateOrganization for application/json ContentType.
 type UpdateOrganizationJSONRequestBody = OrganizationProfileUpdate
@@ -315,6 +391,27 @@ type ServerInterface interface {
 	// GetHealth Liveness check
 	// (GET /healthz)
 	GetHealth(c *gin.Context)
+	// ListOperatorAudit Operator-level audit log
+	// (GET /operator/audit)
+	ListOperatorAudit(c *gin.Context, params ListOperatorAuditParams)
+	// ListOperatorOrganizations List organizations
+	// (GET /operator/organizations)
+	ListOperatorOrganizations(c *gin.Context, params ListOperatorOrganizationsParams)
+	// CreateOperatorOrganization Create an organization and its first owner invitation
+	// (POST /operator/organizations)
+	CreateOperatorOrganization(c *gin.Context)
+	// UpdateOrganizationLimits Set storage quota and sending caps
+	// (PATCH /operator/organizations/{organizationId}/limits)
+	UpdateOrganizationLimits(c *gin.Context, organizationId string)
+	// ReinstateOrganization Reinstate a suspended organization
+	// (POST /operator/organizations/{organizationId}/reinstate)
+	ReinstateOrganization(c *gin.Context, organizationId string)
+	// SuspendOrganization Suspend an organization
+	// (POST /operator/organizations/{organizationId}/suspend)
+	SuspendOrganization(c *gin.Context, organizationId string)
+	// GetOperatorSession Identity of the authenticated platform operator
+	// (GET /operator/session)
+	GetOperatorSession(c *gin.Context)
 	// GetOrganization Get organization settings
 	// (GET /organization)
 	GetOrganization(c *gin.Context)
@@ -490,6 +587,177 @@ func (siw *ServerInterfaceWrapper) GetHealth(c *gin.Context) {
 	siw.Handler.GetHealth(c)
 }
 
+// ListOperatorAudit operation middleware
+func (siw *ServerInterfaceWrapper) ListOperatorAudit(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListOperatorAuditParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "offset", c.Request.URL.Query(), &params.Offset, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter offset: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListOperatorAudit(c, params)
+}
+
+// ListOperatorOrganizations operation middleware
+func (siw *ServerInterfaceWrapper) ListOperatorOrganizations(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListOperatorOrganizationsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", c.Request.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter limit: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "offset", c.Request.URL.Query(), &params.Offset, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter offset: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListOperatorOrganizations(c, params)
+}
+
+// CreateOperatorOrganization operation middleware
+func (siw *ServerInterfaceWrapper) CreateOperatorOrganization(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateOperatorOrganization(c)
+}
+
+// UpdateOrganizationLimits operation middleware
+func (siw *ServerInterfaceWrapper) UpdateOrganizationLimits(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "organizationId" -------------
+	var organizationId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "organizationId", c.Param("organizationId"), &organizationId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter organizationId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateOrganizationLimits(c, organizationId)
+}
+
+// ReinstateOrganization operation middleware
+func (siw *ServerInterfaceWrapper) ReinstateOrganization(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "organizationId" -------------
+	var organizationId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "organizationId", c.Param("organizationId"), &organizationId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter organizationId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ReinstateOrganization(c, organizationId)
+}
+
+// SuspendOrganization operation middleware
+func (siw *ServerInterfaceWrapper) SuspendOrganization(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "organizationId" -------------
+	var organizationId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "organizationId", c.Param("organizationId"), &organizationId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter organizationId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.SuspendOrganization(c, organizationId)
+}
+
+// GetOperatorSession operation middleware
+func (siw *ServerInterfaceWrapper) GetOperatorSession(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetOperatorSession(c)
+}
+
 // GetOrganization operation middleware
 func (siw *ServerInterfaceWrapper) GetOrganization(c *gin.Context) {
 
@@ -638,4 +906,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/users", wrapper.ListUsers)
 	router.POST(options.BaseURL+"/users/invitations", wrapper.InviteUser)
 	router.PATCH(options.BaseURL+"/users/:userId", wrapper.UpdateUser)
+	router.GET(options.BaseURL+"/operator/session", wrapper.GetOperatorSession)
+	router.GET(options.BaseURL+"/operator/organizations", wrapper.ListOperatorOrganizations)
+	router.POST(options.BaseURL+"/operator/organizations", wrapper.CreateOperatorOrganization)
+	router.POST(options.BaseURL+"/operator/organizations/:organizationId/suspend", wrapper.SuspendOrganization)
+	router.POST(options.BaseURL+"/operator/organizations/:organizationId/reinstate", wrapper.ReinstateOrganization)
+	router.PATCH(options.BaseURL+"/operator/organizations/:organizationId/limits", wrapper.UpdateOrganizationLimits)
+	router.GET(options.BaseURL+"/operator/audit", wrapper.ListOperatorAudit)
 }

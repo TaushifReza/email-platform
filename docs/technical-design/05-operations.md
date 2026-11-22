@@ -22,3 +22,5 @@ Pull request: lint, unit and database tests (RLS guard, tenant tests), sending c
 Domain and tunnel hostnames; Access policy on admin; system sender mailbox with SPF/DKIM/DMARC; master key generated and backed up; bucket and key created; backup job and restore test passing; staging campaign with forced crash; production smoke test with about 10 recipients, all owner-controlled addresses.
 
 Dev stack API documentation: `http://localhost:8081/api/docs` (enabled by `DEV_MODE=true`).
+
+Local operator console: add `127.0.0.1 admin.localhost` to `/etc/hosts`, create an operator with `DATABASE_URL=... SYSTEM_DATABASE_URL=... go run ./backend/cmd/operator create dev-operator@example.com` (both dev DSNs are in `infra/dev/docker-compose.yml`), then open `http://admin.localhost:8081/admin`. Reload nginx after changing `infra/nginx/nginx.conf`. The dev nginx host injects the identity header; it is cleared on the tenant host. See `docs/tasks/WP02-operator.md`.

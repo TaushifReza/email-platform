@@ -20,6 +20,7 @@ import (
 	"github.com/TaushifReza/email-platform/backend/internal/platform/logging"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/outbox"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/ratelimit"
+	"github.com/TaushifReza/email-platform/backend/internal/platformadmin"
 	"github.com/TaushifReza/email-platform/backend/internal/tenancy"
 	"github.com/gin-gonic/gin"
 	redis "github.com/go-redis/redis/v8"
@@ -53,7 +54,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := db.New(ctx, cfg.DatabaseURL)
+	pool, err := db.NewWithSystem(ctx, cfg.DatabaseURL, cfg.SystemDatabaseURL)
 	if err != nil {
 		logger.Fatal("Failed to connect to database", zap.Error(err))
 	}
@@ -103,6 +104,10 @@ func main() {
 	orgService := tenancy.NewService(orgRepo, clock.System{})
 	userService := identity.NewUserService(userRepo, sessionRepo, accessService, clock.System{})
 
+	operatorRepo := platformadmin.NewRepository(pool)
+	operatorIdentity := platformadmin.NewIdentityService(operatorRepo)
+	platformAdminService := platformadmin.NewService(operatorRepo, clock.System{})
+
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(gin.Recovery())
@@ -113,6 +118,8 @@ func main() {
 	server.SetAccessService(accessService)
 	server.SetOrganizationService(orgService)
 	server.SetUserService(userService)
+	server.SetOperatorIdentityService(operatorIdentity)
+	server.SetPlatformAdminService(platformAdminService)
 	server.SetConfig(cfg)
 	router.Use(api.RequestIDMiddleware())
 	router.Use(api.CSRFMiddleware())

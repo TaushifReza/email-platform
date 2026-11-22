@@ -65,6 +65,17 @@ func TestSchema_RolesHaveNoBypassRLS(t *testing.T) {
 	}
 }
 
+func TestSchema_AppCannotAssumeSystemRole(t *testing.T) {
+	db := openTestDB(t)
+
+	var allowed bool
+	err := db.QueryRow(
+		`SELECT pg_has_role('email_app', 'email_system', 'MEMBER')`,
+	).Scan(&allowed)
+	require.NoError(t, err)
+	assert.False(t, allowed, "membership would make email_app inherit email_system RLS policies")
+}
+
 func TestSchema_AppCannotAccessOperators(t *testing.T) {
 	db := openTestDB(t)
 	orgID := seedOrganization(t, db, "Org A")
