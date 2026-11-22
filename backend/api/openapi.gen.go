@@ -10,8 +10,11 @@ import (
 // Defines values for ErrorResponseError.
 const (
 	InternalError      ErrorResponseError = "internal_error"
+	InvalidCode        ErrorResponseError = "invalid_code"
 	InvalidCredentials ErrorResponseError = "invalid_credentials"
 	InvalidRequest     ErrorResponseError = "invalid_request"
+	Locked             ErrorResponseError = "locked"
+	MfaRequired        ErrorResponseError = "mfa_required"
 	RateLimited        ErrorResponseError = "rate_limited"
 	Unavailable        ErrorResponseError = "unavailable"
 )
@@ -21,9 +24,15 @@ func (e ErrorResponseError) Valid() bool {
 	switch e {
 	case InternalError:
 		return true
+	case InvalidCode:
+		return true
 	case InvalidCredentials:
 		return true
 	case InvalidRequest:
+		return true
+	case Locked:
+		return true
+	case MfaRequired:
 		return true
 	case RateLimited:
 		return true
@@ -74,7 +83,24 @@ type LoginRequest struct {
 
 // LoginResponse defines model for LoginResponse.
 type LoginResponse struct {
-	MfaRequired bool `json:"mfa_required"`
+	MfaEnrollmentRequired bool `json:"mfa_enrollment_required"`
+	MfaRequired           bool `json:"mfa_required"`
+}
+
+// MFAEnrollResponse defines model for MFAEnrollResponse.
+type MFAEnrollResponse struct {
+	OtpauthUri string `json:"otpauth_uri"`
+	Secret     string `json:"secret"`
+}
+
+// MFARecoveryResponse defines model for MFARecoveryResponse.
+type MFARecoveryResponse struct {
+	RecoveryCodes []string `json:"recovery_codes"`
+}
+
+// MFAVerifyRequest defines model for MFAVerifyRequest.
+type MFAVerifyRequest struct {
+	Code string `json:"code"`
 }
 
 // ReadyResponse defines model for ReadyResponse.
@@ -102,8 +128,23 @@ type SessionResponse struct {
 	UserId         string `json:"user_id"`
 }
 
+// StepUpRequest defines model for StepUpRequest.
+type StepUpRequest struct {
+	Code     string `json:"code"`
+	Password string `json:"password"`
+}
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
+
+// ConfirmMFAEnrollmentJSONRequestBody defines body for ConfirmMFAEnrollment for application/json ContentType.
+type ConfirmMFAEnrollmentJSONRequestBody = MFAVerifyRequest
+
+// VerifyMFAJSONRequestBody defines body for VerifyMFA for application/json ContentType.
+type VerifyMFAJSONRequestBody = MFAVerifyRequest
+
+// StepUpJSONRequestBody defines body for StepUp for application/json ContentType.
+type StepUpJSONRequestBody = StepUpRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -113,9 +154,21 @@ type ServerInterface interface {
 	// Logout End the current session
 	// (POST /auth/logout)
 	Logout(c *gin.Context)
+	// EnrollMFA Begin TOTP enrollment
+	// (POST /auth/mfa/enroll)
+	EnrollMFA(c *gin.Context)
+	// ConfirmMFAEnrollment Confirm TOTP enrollment
+	// (POST /auth/mfa/enroll/confirm)
+	ConfirmMFAEnrollment(c *gin.Context)
+	// VerifyMFA Complete a pending MFA challenge
+	// (POST /auth/mfa/verify)
+	VerifyMFA(c *gin.Context)
 	// GetSession Return the authenticated session
 	// (GET /auth/session)
 	GetSession(c *gin.Context)
+	// StepUp Step-up authentication
+	// (POST /auth/step-up)
+	StepUp(c *gin.Context)
 	// GetHealth Liveness check
 	// (GET /healthz)
 	GetHealth(c *gin.Context)
@@ -159,6 +212,45 @@ func (siw *ServerInterfaceWrapper) Logout(c *gin.Context) {
 	siw.Handler.Logout(c)
 }
 
+// EnrollMFA operation middleware
+func (siw *ServerInterfaceWrapper) EnrollMFA(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.EnrollMFA(c)
+}
+
+// ConfirmMFAEnrollment operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmMFAEnrollment(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ConfirmMFAEnrollment(c)
+}
+
+// VerifyMFA operation middleware
+func (siw *ServerInterfaceWrapper) VerifyMFA(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.VerifyMFA(c)
+}
+
 // GetSession operation middleware
 func (siw *ServerInterfaceWrapper) GetSession(c *gin.Context) {
 
@@ -170,6 +262,19 @@ func (siw *ServerInterfaceWrapper) GetSession(c *gin.Context) {
 	}
 
 	siw.Handler.GetSession(c)
+}
+
+// StepUp operation middleware
+func (siw *ServerInterfaceWrapper) StepUp(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.StepUp(c)
 }
 
 // GetHealth operation middleware
@@ -230,4 +335,8 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/login", wrapper.Login)
 	router.POST(options.BaseURL+"/auth/logout", wrapper.Logout)
 	router.GET(options.BaseURL+"/auth/session", wrapper.GetSession)
+	router.POST(options.BaseURL+"/auth/mfa/enroll", wrapper.EnrollMFA)
+	router.POST(options.BaseURL+"/auth/mfa/enroll/confirm", wrapper.ConfirmMFAEnrollment)
+	router.POST(options.BaseURL+"/auth/mfa/verify", wrapper.VerifyMFA)
+	router.POST(options.BaseURL+"/auth/step-up", wrapper.StepUp)
 }

@@ -26,6 +26,7 @@ type sessionPayload struct {
 	RevokedAt         *time.Time `json:"revoked_at"`
 	IdleExpiresAt     time.Time  `json:"idle_expires_at"`
 	AbsoluteExpiresAt time.Time  `json:"absolute_expires_at"`
+	StepUpExpiresAt   *time.Time `json:"step_up_expires_at"`
 	Role              string     `json:"role"`
 	Status            string     `json:"status"`
 }
@@ -68,6 +69,7 @@ func (r *sessionRepository) LookupSession(ctx context.Context, tokenHash []byte)
 			RevokedAt:         p.RevokedAt,
 			IdleExpiresAt:     p.IdleExpiresAt,
 			AbsoluteExpiresAt: p.AbsoluteExpiresAt,
+			StepUpExpiresAt:   p.StepUpExpiresAt,
 			Role:              p.Role,
 			Status:            p.Status,
 		}
@@ -97,5 +99,28 @@ func (r *sessionRepository) RevokeSession(ctx context.Context, p RevokeSessionPa
 			OrganizationID: p.OrganizationID,
 			TokenHash:      p.TokenHash,
 		})
+	})
+}
+
+func (r *sessionRepository) MarkSessionMFAVerified(ctx context.Context, organizationID, sessionID string, now time.Time) error { //nolint:lll
+	return r.db.WithOrg(ctx, organizationID, func(tx *sql.Tx) error {
+		_, err := sqlc.New(tx).MarkSessionMFAVerified(ctx, sqlc.MarkSessionMFAVerifiedParams{
+			OrganizationID: organizationID,
+			ID:             sessionID,
+			Now:            now,
+		})
+		return err
+	})
+}
+
+func (r *sessionRepository) SetSessionStepUp(ctx context.Context, organizationID, sessionID string, until, now time.Time) error { //nolint:lll
+	return r.db.WithOrg(ctx, organizationID, func(tx *sql.Tx) error {
+		_, err := sqlc.New(tx).SetSessionStepUp(ctx, sqlc.SetSessionStepUpParams{
+			OrganizationID: organizationID,
+			ID:             sessionID,
+			Now:            now,
+			Until:          until,
+		})
+		return err
 	})
 }

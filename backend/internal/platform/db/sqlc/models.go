@@ -115,6 +115,7 @@ type Session struct {
 	IdleExpiresAt     time.Time
 	AbsoluteExpiresAt time.Time
 	RevokedAt         sql.NullTime
+	StepUpExpiresAt   sql.NullTime
 }
 
 type User struct {

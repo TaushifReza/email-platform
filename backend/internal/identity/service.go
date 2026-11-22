@@ -42,10 +42,11 @@ type LoginRequest struct {
 
 // LoginResult describes a successful password verification.
 type LoginResult struct {
-	UserID         string
-	OrganizationID string
-	Role           string
-	MFARequired    bool
+	UserID                string
+	OrganizationID        string
+	Role                  string
+	MFARequired           bool
+	MFAEnrollmentRequired bool
 }
 
 // RateLimitError carries a retry delay.
@@ -179,10 +180,11 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (LoginResult, err
 		return LoginResult{}, fmt.Errorf("identity: clear failed logins: %w", err)
 	}
 	return LoginResult{
-		UserID:         creds.ID,
-		OrganizationID: creds.OrganizationID,
-		Role:           creds.Role,
-		MFARequired:    mfaRequired(creds.Role) || creds.MFAEnrolled,
+		UserID:                creds.ID,
+		OrganizationID:        creds.OrganizationID,
+		Role:                  creds.Role,
+		MFARequired:           mfaRequired(creds.Role) || creds.MFAEnrolled,
+		MFAEnrollmentRequired: mfaRequired(creds.Role) && !creds.MFAEnrolled,
 	}, nil
 }
 
@@ -252,10 +254,11 @@ func (s *Service) SignIn(ctx context.Context, req LoginRequest, info ClientInfo)
 	}
 
 	result := LoginResult{
-		UserID:         creds.ID,
-		OrganizationID: creds.OrganizationID,
-		Role:           creds.Role,
-		MFARequired:    mfaRequired(creds.Role) || creds.MFAEnrolled,
+		UserID:                creds.ID,
+		OrganizationID:        creds.OrganizationID,
+		Role:                  creds.Role,
+		MFARequired:           mfaRequired(creds.Role) || creds.MFAEnrolled,
+		MFAEnrollmentRequired: mfaRequired(creds.Role) && !creds.MFAEnrolled,
 	}
 
 	sess, err := IssueSession(ctx, s.sessions, s.clock, s.session, result, info)
@@ -277,6 +280,15 @@ func (s *Service) Authenticate(ctx context.Context, token string) (Actor, error)
 	// Touch idle expiry best-effort.
 	_ = TouchSessionIfNeeded(ctx, s.sessions, s.clock, s.session, rec) //nolint:errcheck
 	return actor, nil
+}
+
+// AuthenticatePending validates a raw session token that has not yet completed 2FA.
+func (s *Service) AuthenticatePending(ctx context.Context, token string) (PendingSession, error) {
+	ps, _, err := ValidatePendingSession(ctx, s.sessions, s.clock, token)
+	if err != nil {
+		return PendingSession{}, ErrUnauthenticated
+	}
+	return ps, nil
 }
 
 // SignOut revokes a session by raw token.

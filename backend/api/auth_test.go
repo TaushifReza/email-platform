@@ -32,6 +32,13 @@ func (f *fakeAuthService) Authenticate(_ context.Context, _ string) (identity.Ac
 	return f.actor, nil
 }
 
+func (f *fakeAuthService) AuthenticatePending(_ context.Context, _ string) (identity.PendingSession, error) {
+	if f.err != nil {
+		return identity.PendingSession{}, f.err
+	}
+	return identity.PendingSession{}, f.err
+}
+
 func (f *fakeAuthService) SignOut(_ context.Context, _ string) error {
 	return f.err
 }

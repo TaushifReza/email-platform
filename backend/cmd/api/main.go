@@ -14,6 +14,7 @@ import (
 	"github.com/TaushifReza/email-platform/backend/internal/identity"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/clock"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/config"
+	"github.com/TaushifReza/email-platform/backend/internal/platform/crypto"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/db"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/health"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/logging"
@@ -74,9 +75,14 @@ func main() {
 
 	identityRepo := identity.NewRepository(pool)
 	sessionRepo := identity.NewSessionRepository(pool)
+	mfaRepo := identity.NewMFARepository(pool)
 	hasher, err := identity.NewHasher(identity.DefaultArgon2Params)
 	if err != nil {
 		logger.Fatal("Failed to create password hasher", zap.Error(err))
+	}
+	keyring, err := crypto.NewKeyring(cfg.MasterKey)
+	if err != nil {
+		logger.Fatal("Failed to create crypto keyring", zap.Error(err))
 	}
 	var loginLimiter identity.RateLimiter
 	if redisClient != nil {
@@ -84,6 +90,8 @@ func main() {
 	}
 	identityService := identity.NewService(identityRepo, sessionRepo, hasher,
 		loginLimiter, clock.System{}, identity.DefaultLockoutPolicy, identity.DefaultSessionPolicy)
+	mfaService := identity.NewMFAService(mfaRepo, sessionRepo, hasher,
+		loginLimiter, clock.System{}, keyring)
 
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
@@ -91,6 +99,7 @@ func main() {
 	server := api.NewServer(health.New(pool, redisHealth),
 		identityService,
 		logger)
+	server.SetMFAService(mfaService)
 	server.SetConfig(cfg)
 	router.Use(api.CSRFMiddleware())
 	router.Use(api.AuthMiddleware(server))

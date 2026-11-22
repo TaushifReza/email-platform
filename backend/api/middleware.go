@@ -14,6 +14,7 @@ import (
 type AuthService interface {
 	SignIn(ctx context.Context, req identity.LoginRequest, info identity.ClientInfo) (identity.SessionResult, error)
 	Authenticate(ctx context.Context, token string) (identity.Actor, error)
+	AuthenticatePending(ctx context.Context, token string) (identity.PendingSession, error)
 	SignOut(ctx context.Context, token string) error
 }
 
@@ -36,10 +37,18 @@ func isPublicPath(path string) bool {
 		return true
 	case path == "/auth/login":
 		return true
+	case path == "/docs" || path == "/openapi.yaml":
+		return true
 	case strings.HasPrefix(path, "/u/"):
 		return true
 	}
 	return false
+}
+
+func isPendingMFAPath(path string) bool {
+	return path == "/auth/mfa/verify" || path == "/auth/mfa/enroll" ||
+		path == "/auth/mfa/enroll/confirm" || path == "/auth/logout" ||
+		path == "/auth/step-up"
 }
 
 func isCSRFExemptPath(path string) bool {
@@ -59,16 +68,29 @@ func AuthMiddleware(s *Server) gin.HandlerFunc {
 			return
 		}
 		actor, err := s.auth.Authenticate(c.Request.Context(), token)
-		if err != nil {
-			if errors.Is(err, identity.ErrMFARequired) {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, ErrorResponse{Error: "mfa_required"})
-				return
-			}
-			c.AbortWithStatusJSON(http.StatusUnauthorized, ErrorResponse{Error: Unauthorized})
+		if err == nil {
+			c.Set(contextKeyActor, actor)
+			c.Next()
 			return
 		}
-		c.Set(contextKeyActor, actor)
-		c.Next()
+		if errors.Is(err, identity.ErrMFARequired) && isPendingMFAPath(c.Request.URL.Path) {
+			ps, perr := s.auth.AuthenticatePending(c.Request.Context(), token)
+			if perr == nil {
+				c.Set(contextKeyActor, identity.Actor{
+					UserID:         ps.UserID,
+					OrganizationID: ps.OrganizationID,
+					Role:           ps.Role,
+					SessionID:      ps.SessionID,
+				})
+				c.Next()
+				return
+			}
+		}
+		if errors.Is(err, identity.ErrMFARequired) {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, ErrorResponse{Error: "mfa_required"})
+			return
+		}
+		c.AbortWithStatusJSON(http.StatusUnauthorized, ErrorResponse{Error: Unauthorized})
 	}
 }
 

@@ -20,10 +20,20 @@ var ErrMFARequired = errors.New("identity: mfa required")
 
 // Actor describes the authenticated caller.
 type Actor struct {
-	UserID         string
-	OrganizationID string
-	Role           string
+	UserID          string
+	OrganizationID  string
+	Role            string
+	SessionID       string
+	StepUpExpiresAt *time.Time
+}
+
+// PendingSession is a session that has passed password auth but not 2FA.
+type PendingSession struct {
 	SessionID      string
+	OrganizationID string
+	UserID         string
+	Role           string
+	Token          string
 }
 
 // ClientInfo carries transport metadata for session creation.
@@ -53,6 +63,7 @@ type SessionRecord struct {
 	RevokedAt         *time.Time
 	IdleExpiresAt     time.Time
 	AbsoluteExpiresAt time.Time
+	StepUpExpiresAt   *time.Time
 	Role              string
 	Status            string
 }
@@ -63,6 +74,8 @@ type SessionRepository interface {
 	LookupSession(ctx context.Context, tokenHash []byte) (SessionRecord, error)
 	TouchSession(ctx context.Context, params TouchSessionParams) error
 	RevokeSession(ctx context.Context, params RevokeSessionParams) error
+	MarkSessionMFAVerified(ctx context.Context, organizationID, sessionID string, now time.Time) error
+	SetSessionStepUp(ctx context.Context, organizationID, sessionID string, until, now time.Time) error
 }
 
 type CreateSessionParams struct {
@@ -195,10 +208,42 @@ func ValidateSession(ctx context.Context, repo SessionRepository, clk clock.Cloc
 		return Actor{}, rec, ErrMFARequired
 	}
 	return Actor{
-		UserID:         rec.UserID,
-		OrganizationID: rec.OrganizationID,
-		Role:           rec.Role,
+		UserID:          rec.UserID,
+		OrganizationID:  rec.OrganizationID,
+		Role:            rec.Role,
+		SessionID:       rec.SessionID,
+		StepUpExpiresAt: rec.StepUpExpiresAt,
+	}, rec, nil
+}
+
+// ValidatePendingSession validates a session for the MFA-completion step.
+func ValidatePendingSession(ctx context.Context, repo SessionRepository, clk clock.Clock, token string) (PendingSession, SessionRecord, error) { //nolint:lll
+	if token == "" {
+		return PendingSession{}, SessionRecord{}, ErrUnauthenticated
+	}
+	rec, err := repo.LookupSession(ctx, tokenHash(token))
+	if err != nil {
+		return PendingSession{}, SessionRecord{}, ErrUnauthenticated
+	}
+	now := clk.Now()
+	if rec.RevokedAt != nil {
+		return PendingSession{}, rec, ErrUnauthenticated
+	}
+	if !rec.IdleExpiresAt.After(now) || !rec.AbsoluteExpiresAt.After(now) {
+		return PendingSession{}, rec, ErrUnauthenticated
+	}
+	if rec.Status != statusActive {
+		return PendingSession{}, rec, ErrUnauthenticated
+	}
+	if rec.MFAVerified {
+		return PendingSession{}, rec, ErrUnauthenticated
+	}
+	return PendingSession{
 		SessionID:      rec.SessionID,
+		OrganizationID: rec.OrganizationID,
+		UserID:         rec.UserID,
+		Role:           rec.Role,
+		Token:          token,
 	}, rec, nil
 }
 

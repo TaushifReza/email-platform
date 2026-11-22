@@ -122,6 +122,90 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /auth/mfa/enroll:
+    post:
+      operationId: enrollMFA
+      summary: Begin TOTP enrollment
+      responses:
+        '200':
+          description: Enrollment started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MFAEnrollResponse'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/mfa/enroll/confirm:
+    post:
+      operationId: confirmMFAEnrollment
+      summary: Confirm TOTP enrollment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MFAVerifyRequest'
+      responses:
+        '200':
+          description: Enrollment confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MFARecoveryResponse'
+        '401':
+          description: Invalid code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/mfa/verify:
+    post:
+      operationId: verifyMFA
+      summary: Complete a pending MFA challenge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MFAVerifyRequest'
+      responses:
+        '204':
+          description: MFA verified
+        '401':
+          description: Invalid code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/step-up:
+    post:
+      operationId: stepUp
+      summary: Step-up authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StepUpRequest'
+      responses:
+        '204':
+          description: Step-up granted
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   schemas:
     HealthResponse:
@@ -172,8 +256,11 @@ components:
       type: object
       required:
         - mfa_required
+        - mfa_enrollment_required
       properties:
         mfa_required:
+          type: boolean
+        mfa_enrollment_required:
           type: boolean
     SessionResponse:
       type: object
@@ -198,4 +285,40 @@ components:
       properties:
         error:
           type: string
-          enum: [invalid_request, invalid_credentials, rate_limited, unavailable, internal_error]
+          enum: [invalid_request, invalid_credentials, rate_limited, unavailable, internal_error, mfa_required, invalid_code, locked]
+    MFAVerifyRequest:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+    MFAEnrollResponse:
+      type: object
+      required:
+        - secret
+        - otpauth_uri
+      properties:
+        secret:
+          type: string
+        otpauth_uri:
+          type: string
+    MFARecoveryResponse:
+      type: object
+      required:
+        - recovery_codes
+      properties:
+        recovery_codes:
+          type: array
+          items:
+            type: string
+    StepUpRequest:
+      type: object
+      required:
+        - password
+        - code
+      properties:
+        password:
+          type: string
+        code:
+          type: string
