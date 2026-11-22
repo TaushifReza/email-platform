@@ -275,6 +275,141 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  /organization:
+    get:
+      operationId: getOrganization
+      summary: Get organization settings
+      responses:
+        '200':
+          description: Organization settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '401':
+          description: Unauthenticated
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    patch:
+      operationId: updateOrganization
+      summary: Update organization profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationProfileUpdate'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /organization/policy:
+    patch:
+      operationId: updateOrganizationPolicy
+      summary: Update organization policy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationPolicyUpdate'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /users:
+    get:
+      operationId: listUsers
+      summary: List users in the organization
+      responses:
+        '200':
+          description: Users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserList'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /users/invitations:
+    post:
+      operationId: inviteUser
+      summary: Invite a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteUserRequest'
+      responses:
+        '204':
+          description: Invitation sent
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /users/{userId}:
+    patch:
+      operationId: updateUser
+      summary: Change a user's role or deactivate
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '204':
+          description: Updated
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Conflict (last owner)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
 components:
   schemas:
     HealthResponse:
@@ -384,6 +519,90 @@ components:
           type: string
           minLength: 1
           maxLength: 1024
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        defaultSenderName:
+          type: string
+        defaultReplyTo:
+          type: string
+        timeZone:
+          type: string
+        status:
+          type: string
+        requireApproval:
+          type: boolean
+        retentionDays:
+          type: integer
+        storageQuotaBytes:
+          type: integer
+          format: int64
+        capsEnabled:
+          type: boolean
+    OrganizationProfileUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        defaultSenderName:
+          type: string
+        defaultReplyTo:
+          type: string
+        timeZone:
+          type: string
+    OrganizationPolicyUpdate:
+      type: object
+      properties:
+        requireApproval:
+          type: boolean
+        retentionDays:
+          type: integer
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: string
+        role:
+          type: string
+        status:
+          type: string
+    UserList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        meta:
+          type: object
+          properties:
+            nextCursor:
+              type: string
+            hasMore:
+              type: boolean
+    InviteUserRequest:
+      type: object
+      required: [email, role]
+      properties:
+        email:
+          type: string
+        role:
+          type: string
+    UpdateUserRequest:
+      type: object
+      properties:
+        role:
+          type: string
+        deactivate:
+          type: boolean
     Problem:
       type: object
       required:

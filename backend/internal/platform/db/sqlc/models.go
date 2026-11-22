@@ -43,7 +43,7 @@ type Invitation struct {
 	Email           string
 	EmailNormalized sql.NullString
 	Role            string
-	InvitedByUserID string
+	InvitedByUserID sql.NullString
 	AcceptedUserID  sql.NullString
 	TokenHash       []byte
 	ExpiresAt       time.Time

@@ -102,6 +102,16 @@ func (r *sessionRepository) RevokeSession(ctx context.Context, p RevokeSessionPa
 	})
 }
 
+func (r *sessionRepository) RevokeAllUserSessions(ctx context.Context, organizationID, userID string, now time.Time) error { //nolint:lll
+	return r.db.WithOrg(ctx, organizationID, func(tx *sql.Tx) error {
+		return sqlc.New(tx).RevokeAllUserSessions(ctx, sqlc.RevokeAllUserSessionsParams{
+			OrganizationID: organizationID,
+			UserID:         userID,
+			RevokedAt:      now,
+		})
+	})
+}
+
 func (r *sessionRepository) MarkSessionMFAVerified(ctx context.Context, organizationID, sessionID string, now time.Time) error { //nolint:lll
 	return r.db.WithOrg(ctx, organizationID, func(tx *sql.Tx) error {
 		_, err := sqlc.New(tx).MarkSessionMFAVerified(ctx, sqlc.MarkSessionMFAVerifiedParams{

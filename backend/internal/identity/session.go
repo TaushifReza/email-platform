@@ -74,6 +74,7 @@ type SessionRepository interface {
 	LookupSession(ctx context.Context, tokenHash []byte) (SessionRecord, error)
 	TouchSession(ctx context.Context, params TouchSessionParams) error
 	RevokeSession(ctx context.Context, params RevokeSessionParams) error
+	RevokeAllUserSessions(ctx context.Context, organizationID, userID string, now time.Time) error
 	MarkSessionMFAVerified(ctx context.Context, organizationID, sessionID string, now time.Time) error
 	SetSessionStepUp(ctx context.Context, organizationID, sessionID string, until, now time.Time) error
 }

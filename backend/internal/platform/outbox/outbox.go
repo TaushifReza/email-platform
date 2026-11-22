@@ -11,15 +11,15 @@ import (
 
 // Message is a queued system email.
 type Message struct {
-	ID            string
+	ID             string
 	OrganizationID string
-	UserID        string
-	Kind          string
-	Recipient     string
-	Subject       string
-	TextBody      string
-	HTMLBody      string
-	NextAttemptAt time.Time
+	UserID         string
+	Kind           string
+	Recipient      string
+	Subject        string
+	TextBody       string
+	HTMLBody       string
+	NextAttemptAt  time.Time
 }
 
 // Store persists system emails.
@@ -76,8 +76,8 @@ func (s *Store) Claim(ctx context.Context, limit int, lease time.Time) ([]Claime
 	var out []Claimed
 	err := s.db.WithSystem(ctx, func(tx *sql.Tx) error {
 		rows, err := sqlc.New(tx).ClaimSystemEmails(ctx, sqlc.ClaimSystemEmailsParams{
-			RowLimit:        int32(limit), // #nosec G115
-			LeaseExpiresAt:  lease,
+			RowLimit:       int32(limit), // #nosec G115
+			LeaseExpiresAt: lease,
 		})
 		if err != nil {
 			return err
@@ -117,7 +117,7 @@ func (s *Store) MarkFailed(ctx context.Context, id string, attempts, maxAttempts
 	return s.db.WithSystem(ctx, func(tx *sql.Tx) error {
 		return sqlc.New(tx).MarkSystemEmailFailed(ctx, sqlc.MarkSystemEmailFailedParams{
 			ID:            id,
-			AttemptCount:  int32(attempts), // #nosec G115
+			AttemptCount:  int32(attempts),    // #nosec G115
 			MaxAttempts:   int32(maxAttempts), // #nosec G115
 			NextAttemptAt: next,
 			LastError:     errMsg,

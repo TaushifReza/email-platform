@@ -20,6 +20,7 @@ import (
 	"github.com/TaushifReza/email-platform/backend/internal/platform/logging"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/outbox"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/ratelimit"
+	"github.com/TaushifReza/email-platform/backend/internal/tenancy"
 	"github.com/gin-gonic/gin"
 	redis "github.com/go-redis/redis/v8"
 	"go.uber.org/zap"
@@ -97,6 +98,11 @@ func main() {
 	accessRepo := identity.NewAccessRepository(pool, outboxStore)
 	accessService := identity.NewAccessService(accessRepo, hasher, clock.System{}, cfg.AppBaseURL, loginLimiter)
 
+	orgRepo := tenancy.NewRepository(pool)
+	userRepo := identity.NewUserRepository(pool)
+	orgService := tenancy.NewService(orgRepo, clock.System{})
+	userService := identity.NewUserService(userRepo, sessionRepo, accessService, clock.System{})
+
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(gin.Recovery())
@@ -105,6 +111,8 @@ func main() {
 		logger)
 	server.SetMFAService(mfaService)
 	server.SetAccessService(accessService)
+	server.SetOrganizationService(orgService)
+	server.SetUserService(userService)
 	server.SetConfig(cfg)
 	router.Use(api.RequestIDMiddleware())
 	router.Use(api.CSRFMiddleware())

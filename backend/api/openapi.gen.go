@@ -4,7 +4,11 @@
 package api
 
 import (
+	"fmt"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
+	"github.com/oapi-codegen/runtime"
 )
 
 // Defines values for ProblemCode.
@@ -98,6 +102,12 @@ type HealthResponse struct {
 	Status string `json:"status"`
 }
 
+// InviteUserRequest defines model for InviteUserRequest.
+type InviteUserRequest struct {
+	Email string `json:"email"`
+	Role  string `json:"role"`
+}
+
 // LoginRequest defines model for LoginRequest.
 type LoginRequest struct {
 	Email    string `json:"email"`
@@ -124,6 +134,34 @@ type MFARecoveryResponse struct {
 // MFAVerifyRequest defines model for MFAVerifyRequest.
 type MFAVerifyRequest struct {
 	Code string `json:"code"`
+}
+
+// Organization defines model for Organization.
+type Organization struct {
+	CapsEnabled       *bool   `json:"capsEnabled,omitempty"`
+	DefaultReplyTo    *string `json:"defaultReplyTo,omitempty"`
+	DefaultSenderName *string `json:"defaultSenderName,omitempty"`
+	Id                *string `json:"id,omitempty"`
+	Name              *string `json:"name,omitempty"`
+	RequireApproval   *bool   `json:"requireApproval,omitempty"`
+	RetentionDays     *int    `json:"retentionDays,omitempty"`
+	Status            *string `json:"status,omitempty"`
+	StorageQuotaBytes *int64  `json:"storageQuotaBytes,omitempty"`
+	TimeZone          *string `json:"timeZone,omitempty"`
+}
+
+// OrganizationPolicyUpdate defines model for OrganizationPolicyUpdate.
+type OrganizationPolicyUpdate struct {
+	RequireApproval *bool `json:"requireApproval,omitempty"`
+	RetentionDays   *int  `json:"retentionDays,omitempty"`
+}
+
+// OrganizationProfileUpdate defines model for OrganizationProfileUpdate.
+type OrganizationProfileUpdate struct {
+	DefaultReplyTo    *string `json:"defaultReplyTo,omitempty"`
+	DefaultSenderName *string `json:"defaultSenderName,omitempty"`
+	Name              *string `json:"name,omitempty"`
+	TimeZone          *string `json:"timeZone,omitempty"`
 }
 
 // PasswordResetConfirm defines model for PasswordResetConfirm.
@@ -185,6 +223,30 @@ type StepUpRequest struct {
 	Password string `json:"password"`
 }
 
+// UpdateUserRequest defines model for UpdateUserRequest.
+type UpdateUserRequest struct {
+	Deactivate *bool   `json:"deactivate,omitempty"`
+	Role       *string `json:"role,omitempty"`
+}
+
+// User defines model for User.
+type User struct {
+	DisplayName *string `json:"displayName,omitempty"`
+	Email       *string `json:"email,omitempty"`
+	Id          *string `json:"id,omitempty"`
+	Role        *string `json:"role,omitempty"`
+	Status      *string `json:"status,omitempty"`
+}
+
+// UserList defines model for UserList.
+type UserList struct {
+	Data *[]User `json:"data,omitempty"`
+	Meta *struct {
+		HasMore    *bool   `json:"hasMore,omitempty"`
+		NextCursor *string `json:"nextCursor,omitempty"`
+	} `json:"meta,omitempty"`
+}
+
 // AcceptInvitationJSONRequestBody defines body for AcceptInvitation for application/json ContentType.
 type AcceptInvitationJSONRequestBody = AcceptInvitationRequest
 
@@ -205,6 +267,18 @@ type RequestPasswordResetJSONRequestBody = PasswordResetRequest
 
 // StepUpJSONRequestBody defines body for StepUp for application/json ContentType.
 type StepUpJSONRequestBody = StepUpRequest
+
+// UpdateOrganizationJSONRequestBody defines body for UpdateOrganization for application/json ContentType.
+type UpdateOrganizationJSONRequestBody = OrganizationProfileUpdate
+
+// UpdateOrganizationPolicyJSONRequestBody defines body for UpdateOrganizationPolicy for application/json ContentType.
+type UpdateOrganizationPolicyJSONRequestBody = OrganizationPolicyUpdate
+
+// InviteUserJSONRequestBody defines body for InviteUser for application/json ContentType.
+type InviteUserJSONRequestBody = InviteUserRequest
+
+// UpdateUserJSONRequestBody defines body for UpdateUser for application/json ContentType.
+type UpdateUserJSONRequestBody = UpdateUserRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -241,9 +315,27 @@ type ServerInterface interface {
 	// GetHealth Liveness check
 	// (GET /healthz)
 	GetHealth(c *gin.Context)
+	// GetOrganization Get organization settings
+	// (GET /organization)
+	GetOrganization(c *gin.Context)
+	// UpdateOrganization Update organization profile
+	// (PATCH /organization)
+	UpdateOrganization(c *gin.Context)
+	// UpdateOrganizationPolicy Update organization policy
+	// (PATCH /organization/policy)
+	UpdateOrganizationPolicy(c *gin.Context)
 	// GetReady Readiness check
 	// (GET /readyz)
 	GetReady(c *gin.Context)
+	// ListUsers List users in the organization
+	// (GET /users)
+	ListUsers(c *gin.Context)
+	// InviteUser Invite a user
+	// (POST /users/invitations)
+	InviteUser(c *gin.Context)
+	// UpdateUser Change a user's role or deactivate
+	// (PATCH /users/{userId})
+	UpdateUser(c *gin.Context, userId string)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -398,6 +490,45 @@ func (siw *ServerInterfaceWrapper) GetHealth(c *gin.Context) {
 	siw.Handler.GetHealth(c)
 }
 
+// GetOrganization operation middleware
+func (siw *ServerInterfaceWrapper) GetOrganization(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetOrganization(c)
+}
+
+// UpdateOrganization operation middleware
+func (siw *ServerInterfaceWrapper) UpdateOrganization(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateOrganization(c)
+}
+
+// UpdateOrganizationPolicy operation middleware
+func (siw *ServerInterfaceWrapper) UpdateOrganizationPolicy(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateOrganizationPolicy(c)
+}
+
 // GetReady operation middleware
 func (siw *ServerInterfaceWrapper) GetReady(c *gin.Context) {
 
@@ -409,6 +540,57 @@ func (siw *ServerInterfaceWrapper) GetReady(c *gin.Context) {
 	}
 
 	siw.Handler.GetReady(c)
+}
+
+// ListUsers operation middleware
+func (siw *ServerInterfaceWrapper) ListUsers(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListUsers(c)
+}
+
+// InviteUser operation middleware
+func (siw *ServerInterfaceWrapper) InviteUser(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.InviteUser(c)
+}
+
+// UpdateUser operation middleware
+func (siw *ServerInterfaceWrapper) UpdateUser(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "userId" -------------
+	var userId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "userId", c.Param("userId"), &userId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter userId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateUser(c, userId)
 }
 
 // GinServerOptions provides options for the Gin server.
@@ -450,4 +632,10 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/mfa/enroll/confirm", wrapper.ConfirmMFAEnrollment)
 	router.POST(options.BaseURL+"/auth/mfa/verify", wrapper.VerifyMFA)
 	router.POST(options.BaseURL+"/auth/step-up", wrapper.StepUp)
+	router.GET(options.BaseURL+"/organization", wrapper.GetOrganization)
+	router.PATCH(options.BaseURL+"/organization", wrapper.UpdateOrganization)
+	router.PATCH(options.BaseURL+"/organization/policy", wrapper.UpdateOrganizationPolicy)
+	router.GET(options.BaseURL+"/users", wrapper.ListUsers)
+	router.POST(options.BaseURL+"/users/invitations", wrapper.InviteUser)
+	router.PATCH(options.BaseURL+"/users/:userId", wrapper.UpdateUser)
 }
