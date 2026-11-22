@@ -14,8 +14,6 @@ import (
 )
 
 const (
-	roleOwner    = "owner"
-	roleAdmin    = "admin"
 	statusActive = "active"
 
 	loginRateLimit  = 5

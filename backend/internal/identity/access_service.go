@@ -36,8 +36,8 @@ func NewAccessService(repo AccessRepository, hasher PasswordHasher, clk clock.Cl
 }
 
 func (s *AccessService) IssueInvitation(ctx context.Context, actor Actor, email, role string) error {
-	if actor.Role != roleOwner && actor.Role != roleAdmin {
-		return errors.New("identity: forbidden")
+	if err := Authorize(actor, Request{Capability: CapManageUsers, TargetRole: role}); err != nil {
+		return err
 	}
 	email = normalizeEmail(email)
 	if email == "" || !validRole(role) {
@@ -157,14 +157,6 @@ func (s *AccessService) ResetPassword(ctx context.Context, token, password strin
 		return errors.New("identity: invalid reset token")
 	}
 	return s.repo.ResetPassword(ctx, info.OrganizationID, info.UserID, info.TokenID, hash, now)
-}
-
-func validRole(role string) bool {
-	switch role {
-	case roleOwner, roleAdmin, "campaign_manager", "reviewer", "viewer":
-		return true
-	}
-	return false
 }
 
 func sha256Bytes(b string) []byte {
