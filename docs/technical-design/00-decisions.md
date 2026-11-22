@@ -25,3 +25,4 @@
 | D-21 | Snapshot at launch by immutability (template versions immutable, rows locked, provider `config_version` check) |
 | D-22 | System sender: operator-owned Google Workspace SMTP account (dedicated mailbox, app password) |
 | D-23 | Library candidates (verify maintenance before use): SMTP client with explicit TLS control, an XLSX reader, an HTML sanitizer, a TOTP library, argon2, a Postgres job library such as River, oapi-codegen |
+| D-24 | API responses: bare success bodies and `204` for empty; errors as RFC 9457 `application/problem+json` with stable `code`, `request_id`, and field-level `errors[]` |

@@ -7,21 +7,33 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Defines values for ErrorResponseError.
+// Defines values for ProblemCode.
 const (
-	InternalError      ErrorResponseError = "internal_error"
-	InvalidCode        ErrorResponseError = "invalid_code"
-	InvalidCredentials ErrorResponseError = "invalid_credentials"
-	InvalidRequest     ErrorResponseError = "invalid_request"
-	Locked             ErrorResponseError = "locked"
-	MfaRequired        ErrorResponseError = "mfa_required"
-	RateLimited        ErrorResponseError = "rate_limited"
-	Unavailable        ErrorResponseError = "unavailable"
+	Conflict           ProblemCode = "conflict"
+	CsrfRejected       ProblemCode = "csrf_rejected"
+	Forbidden          ProblemCode = "forbidden"
+	InternalError      ProblemCode = "internal_error"
+	InvalidCode        ProblemCode = "invalid_code"
+	InvalidCredentials ProblemCode = "invalid_credentials"
+	InvalidRequest     ProblemCode = "invalid_request"
+	Locked             ProblemCode = "locked"
+	MfaRequired        ProblemCode = "mfa_required"
+	NotFound           ProblemCode = "not_found"
+	RateLimited        ProblemCode = "rate_limited"
+	Unauthorized       ProblemCode = "unauthorized"
+	Unavailable        ProblemCode = "unavailable"
+	ValidationFailed   ProblemCode = "validation_failed"
 )
 
-// Valid indicates whether the value is a known member of the ErrorResponseError enum.
-func (e ErrorResponseError) Valid() bool {
+// Valid indicates whether the value is a known member of the ProblemCode enum.
+func (e ProblemCode) Valid() bool {
 	switch e {
+	case Conflict:
+		return true
+	case CsrfRejected:
+		return true
+	case Forbidden:
+		return true
 	case InternalError:
 		return true
 	case InvalidCode:
@@ -34,9 +46,15 @@ func (e ErrorResponseError) Valid() bool {
 		return true
 	case MfaRequired:
 		return true
+	case NotFound:
+		return true
 	case RateLimited:
 		return true
+	case Unauthorized:
+		return true
 	case Unavailable:
+		return true
+	case ValidationFailed:
 		return true
 	default:
 		return false
@@ -61,13 +79,12 @@ func (e ReadyResponseStatus) Valid() bool {
 	}
 }
 
-// ErrorResponse defines model for ErrorResponse.
-type ErrorResponse struct {
-	Error ErrorResponseError `json:"error"`
+// FieldError defines model for FieldError.
+type FieldError struct {
+	Code    string `json:"code"`
+	Field   string `json:"field"`
+	Message string `json:"message"`
 }
-
-// ErrorResponseError defines model for ErrorResponse.Error.
-type ErrorResponseError string
 
 // HealthResponse defines model for HealthResponse.
 type HealthResponse struct {
@@ -102,6 +119,23 @@ type MFARecoveryResponse struct {
 type MFAVerifyRequest struct {
 	Code string `json:"code"`
 }
+
+// Problem defines model for Problem.
+type Problem struct {
+	Code      ProblemCode   `json:"code"`
+	Detail    *string       `json:"detail,omitempty"`
+	Errors    *[]FieldError `json:"errors,omitempty"`
+	Instance  *string       `json:"instance,omitempty"`
+	RequestId string        `json:"request_id"`
+	Status    int           `json:"status"`
+	Title     string        `json:"title"`
+
+	// Type Example: about:blank
+	Type string `json:"type"`
+}
+
+// ProblemCode defines model for Problem.Code.
+type ProblemCode string
 
 // ReadyResponse defines model for ReadyResponse.
 type ReadyResponse struct {

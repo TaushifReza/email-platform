@@ -38,16 +38,16 @@ type mfaRecoveryResponse struct {
 func (s *Server) EnrollMFA(c *gin.Context) {
 	actor, ok := ActorFrom(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: Unauthorized})
+		RespondProblem(c, http.StatusUnauthorized, CodeUnauthorized, "Unauthenticated", nil)
 		return
 	}
 	if s.mfa == nil {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Error: Unavailable})
+		RespondProblem(c, http.StatusServiceUnavailable, CodeUnavailable, "Service unavailable", nil)
 		return
 	}
 	res, err := s.mfa.BeginEnrollment(c.Request.Context(), actor)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: InvalidRequest})
+		RespondProblem(c, http.StatusBadRequest, CodeInvalidRequest, "Invalid request", nil)
 		return
 	}
 	c.JSON(http.StatusOK, mfaEnrollResponse{Secret: res.Secret, OtpauthURI: res.OtpauthURI})
@@ -57,22 +57,22 @@ func (s *Server) EnrollMFA(c *gin.Context) {
 func (s *Server) ConfirmMFAEnrollment(c *gin.Context) {
 	actor, ok := ActorFrom(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: Unauthorized})
+		RespondProblem(c, http.StatusUnauthorized, CodeUnauthorized, "Unauthenticated", nil)
 		return
 	}
 	if s.mfa == nil {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Error: Unavailable})
+		RespondProblem(c, http.StatusServiceUnavailable, CodeUnavailable, "Service unavailable", nil)
 		return
 	}
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxMFABodyBytes)
 	var req mfaEnrollConfirmRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: InvalidRequest})
+		RespondProblem(c, http.StatusBadRequest, CodeInvalidRequest, "Invalid request", nil)
 		return
 	}
 	codes, err := s.mfa.ConfirmEnrollment(c.Request.Context(), actor, req.Code)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: InvalidCredentials})
+		RespondProblem(c, http.StatusUnauthorized, CodeInvalidCredentials, "Invalid credentials", nil)
 		return
 	}
 	c.JSON(http.StatusOK, mfaRecoveryResponse{RecoveryCodes: codes})
@@ -83,17 +83,17 @@ func (s *Server) VerifyMFA(c *gin.Context) {
 	token, _ := c.Cookie(cookieName(s.cfg)) //nolint:errcheck
 	ps, err := s.auth.AuthenticatePending(c.Request.Context(), token)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: Unauthorized})
+		RespondProblem(c, http.StatusUnauthorized, CodeUnauthorized, "Unauthenticated", nil)
 		return
 	}
 	if s.mfa == nil {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Error: Unavailable})
+		RespondProblem(c, http.StatusServiceUnavailable, CodeUnavailable, "Service unavailable", nil)
 		return
 	}
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxMFABodyBytes)
 	var req mfaVerifyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: InvalidRequest})
+		RespondProblem(c, http.StatusBadRequest, CodeInvalidRequest, "Invalid request", nil)
 		return
 	}
 	info := identity.ClientInfo{
@@ -108,7 +108,7 @@ func (s *Server) VerifyMFA(c *gin.Context) {
 	}
 	if err := s.mfa.VerifyMFA(c.Request.Context(), pending, req.Code, info); err != nil {
 		if errors.Is(err, identity.ErrMFALocked) {
-			c.JSON(http.StatusLocked, ErrorResponse{Error: "locked"})
+			RespondProblem(c, http.StatusLocked, CodeLocked, "Account locked", nil)
 			return
 		}
 		var rl *identity.RateLimitError
@@ -118,37 +118,37 @@ func (s *Server) VerifyMFA(c *gin.Context) {
 				seconds = 1
 			}
 			c.Header("Retry-After", itoa(seconds))
-			c.JSON(http.StatusTooManyRequests, ErrorResponse{Error: RateLimited})
+			RespondProblem(c, http.StatusTooManyRequests, CodeRateLimited, "Too many attempts", nil)
 			return
 		}
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: InvalidCredentials})
+		RespondProblem(c, http.StatusUnauthorized, CodeInvalidCredentials, "Invalid credentials", nil)
 		return
 	}
-	c.Status(http.StatusNoContent)
+	RespondNoContent(c)
 }
 
 // StepUp implements POST /auth/step-up.
 func (s *Server) StepUp(c *gin.Context) {
 	actor, ok := ActorFrom(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: Unauthorized})
+		RespondProblem(c, http.StatusUnauthorized, CodeUnauthorized, "Unauthenticated", nil)
 		return
 	}
 	if s.mfa == nil {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Error: Unavailable})
+		RespondProblem(c, http.StatusServiceUnavailable, CodeUnavailable, "Service unavailable", nil)
 		return
 	}
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxMFABodyBytes)
 	var req stepUpRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: InvalidRequest})
+		RespondProblem(c, http.StatusBadRequest, CodeInvalidRequest, "Invalid request", nil)
 		return
 	}
 	if err := s.mfa.StepUp(c.Request.Context(), actor, req.Password, req.Code); err != nil {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: InvalidCredentials})
+		RespondProblem(c, http.StatusUnauthorized, CodeInvalidCredentials, "Invalid credentials", nil)
 		return
 	}
-	c.Status(http.StatusNoContent)
+	RespondNoContent(c)
 }
 
 func itoa(n int) string {

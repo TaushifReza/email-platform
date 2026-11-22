@@ -83,3 +83,9 @@ worker egress: internet (SMTP) + postgres, redis, rustfs only
 - Dev-only API docs: when `DEV_MODE=true`, the API serves Swagger UI at `/docs` and the spec at `/openapi.yaml`.
 - Metrics: Prometheus format from `api` and `worker`.
 - Trusted proxy: the client IP header is trusted only for requests from the nginx container network.
+
+## API response conventions
+- Success: bare resource body; `204 No Content` for no payload; collections use `{data, meta:{next_cursor,has_more}}`.
+- Errors: `application/problem+json` RFC 9457 with `code`, `request_id`, and optional `errors[]` field failures.
+- Every response carries `X-Request-ID`; inbound IDs are validated and echoed, else generated.
+- Exceptions: `/healthz`, `/readyz`, `/docs`, `/openapi.yaml`, and `/u/*` HTML.

@@ -195,9 +195,22 @@ export interface components {
             role: string;
             mfa_verified: boolean;
         };
-        ErrorResponse: {
+        Problem: {
+            /** @example about:blank */
+            type: string;
+            title: string;
+            status: number;
+            detail?: string;
+            instance?: string;
             /** @enum {string} */
-            error: "invalid_request" | "invalid_credentials" | "rate_limited" | "unavailable" | "internal_error" | "mfa_required" | "invalid_code" | "locked";
+            code: "invalid_request" | "invalid_credentials" | "rate_limited" | "unavailable" | "internal_error" | "mfa_required" | "invalid_code" | "locked" | "csrf_rejected" | "forbidden" | "not_found" | "conflict" | "validation_failed" | "unauthorized";
+            request_id: string;
+            errors?: components["schemas"]["FieldError"][];
+        };
+        FieldError: {
+            field: string;
+            code: string;
+            message: string;
         };
         MFAVerifyRequest: {
             code: string;
@@ -300,7 +313,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Invalid credentials */
@@ -309,7 +322,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description CSRF rejected */
@@ -318,7 +331,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Too many attempts */
@@ -327,7 +340,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Authentication unavailable */
@@ -336,7 +349,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -363,7 +376,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description CSRF rejected */
@@ -372,7 +385,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -401,7 +414,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -430,7 +443,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -463,7 +476,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -494,7 +507,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Too many attempts */
@@ -503,7 +516,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };
@@ -534,7 +547,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };

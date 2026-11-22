@@ -16,8 +16,6 @@ import (
 
 const maxLoginBodyBytes = 4096
 
-const Unauthorized = "unauthorized"
-
 // Login implements POST /auth/login.
 func (s *Server) Login(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
@@ -25,11 +23,11 @@ func (s *Server) Login(c *gin.Context) {
 
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: InvalidRequest})
+		RespondProblem(c, http.StatusBadRequest, CodeInvalidRequest, "Invalid request body", nil)
 		return
 	}
 	if strings.TrimSpace(req.Email) == "" || len(req.Email) > 254 || req.Password == "" || len(req.Password) > 1024 {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: InvalidRequest})
+		RespondProblem(c, http.StatusBadRequest, CodeInvalidRequest, "Invalid request fields", nil)
 		return
 	}
 
@@ -51,19 +49,19 @@ func (s *Server) Login(c *gin.Context) {
 			seconds = 1
 		}
 		c.Header("Retry-After", strconv.Itoa(seconds))
-		c.JSON(http.StatusTooManyRequests, ErrorResponse{Error: RateLimited})
+		RespondProblem(c, http.StatusTooManyRequests, CodeRateLimited, "Too many attempts", nil)
 		return
 	}
 	if errors.Is(err, identity.ErrInvalidCredentials) {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: InvalidCredentials})
+		RespondProblem(c, http.StatusUnauthorized, CodeInvalidCredentials, "Invalid credentials", nil)
 		return
 	}
 	if errors.Is(err, identity.ErrRateLimiterUnavailable) {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Error: Unavailable})
+		RespondProblem(c, http.StatusServiceUnavailable, CodeUnavailable, "Authentication unavailable", nil)
 		return
 	}
 	s.logger.Error("login failed", zap.Error(err))
-	c.JSON(http.StatusInternalServerError, ErrorResponse{Error: InternalError})
+	RespondProblem(c, http.StatusInternalServerError, CodeInternalError, "Internal server error", nil)
 }
 
 // Logout implements POST /auth/logout.
@@ -71,14 +69,14 @@ func (s *Server) Logout(c *gin.Context) {
 	token, _ := c.Cookie(cookieName(s.cfg))        //nolint:errcheck
 	_ = s.auth.SignOut(c.Request.Context(), token) //nolint:errcheck
 	clearSessionCookie(c.Writer, s.cfg)
-	c.Status(http.StatusNoContent)
+	RespondNoContent(c)
 }
 
 // GetSession implements GET /auth/session.
 func (s *Server) GetSession(c *gin.Context) {
 	actor, ok := ActorFrom(c)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: Unauthorized})
+		RespondProblem(c, http.StatusUnauthorized, CodeUnauthorized, "Unauthenticated", nil)
 		return
 	}
 	c.JSON(http.StatusOK, SessionResponse{

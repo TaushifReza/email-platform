@@ -101,9 +101,14 @@ func main() {
 		logger)
 	server.SetMFAService(mfaService)
 	server.SetConfig(cfg)
+	router.Use(api.RequestIDMiddleware())
 	router.Use(api.CSRFMiddleware())
 	router.Use(api.AuthMiddleware(server))
-	api.RegisterHandlers(router, server)
+	api.RegisterHandlersWithOptions(router, server, api.GinServerOptions{
+		ErrorHandler: func(c *gin.Context, err error, statusCode int) {
+			api.RespondProblem(c, statusCode, api.CodeInvalidRequest, err.Error(), nil)
+		},
+	})
 	if cfg.DevMode {
 		api.RegisterDevRoutes(router, cfg.OpenAPISpecPath)
 	}

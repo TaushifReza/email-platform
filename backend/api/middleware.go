@@ -64,7 +64,8 @@ func AuthMiddleware(s *Server) gin.HandlerFunc {
 		cfg := s.cfg
 		token, err := c.Cookie(cookieName(cfg))
 		if err != nil || token == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, ErrorResponse{Error: Unauthorized})
+			RespondProblem(c, http.StatusUnauthorized, CodeUnauthorized, "Unauthenticated", nil)
+			c.Abort()
 			return
 		}
 		actor, err := s.auth.Authenticate(c.Request.Context(), token)
@@ -87,10 +88,12 @@ func AuthMiddleware(s *Server) gin.HandlerFunc {
 			}
 		}
 		if errors.Is(err, identity.ErrMFARequired) {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, ErrorResponse{Error: "mfa_required"})
+			RespondProblem(c, http.StatusUnauthorized, CodeMFARequired, "MFA required", nil)
+			c.Abort()
 			return
 		}
-		c.AbortWithStatusJSON(http.StatusUnauthorized, ErrorResponse{Error: Unauthorized})
+		RespondProblem(c, http.StatusUnauthorized, CodeUnauthorized, "Unauthenticated", nil)
+		c.Abort()
 	}
 }
 
@@ -105,12 +108,14 @@ func CSRFMiddleware() gin.HandlerFunc {
 			return
 		}
 		if c.GetHeader(csrfHeaderName) == "" {
-			c.AbortWithStatusJSON(http.StatusForbidden, ErrorResponse{Error: "csrf_rejected"})
+			RespondProblem(c, http.StatusForbidden, CodeCSRFRejected, "CSRF rejected", nil)
+			c.Abort()
 			return
 		}
 		if origin := c.GetHeader("Origin"); origin != "" {
 			if !sameOrigin(origin, c.Request.Host) {
-				c.AbortWithStatusJSON(http.StatusForbidden, ErrorResponse{Error: "csrf_rejected"})
+				RespondProblem(c, http.StatusForbidden, CodeCSRFRejected, "CSRF rejected", nil)
+				c.Abort()
 				return
 			}
 		}
