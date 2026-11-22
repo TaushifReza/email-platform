@@ -16,6 +16,8 @@ const (
 	defaultStorageName   = "email-platform"
 	defaultSMTPPort      = 587
 	defaultSenderEmail   = "noreply@example.com"
+	defaultAppBaseURL    = "http://localhost:8081"
+	defaultSMTPTLSMode   = "starttls"
 	defaultDevMode       = false
 	defaultOpenAPISpec   = "api/openapi.yaml"
 	secretFileSuffix     = "_FILE"
@@ -46,7 +48,9 @@ type Config struct {
 	SMTPPort             int
 	SMTPUsername         string
 	SMTPPassword         string
+	SMTPTLSMode          string
 	EmailFrom            string
+	AppBaseURL           string
 	DevMode              bool
 	OpenAPISpecPath      string
 	TrustedProxyCIDRs    string
@@ -72,7 +76,9 @@ func Load() (Config, error) {
 		SMTPPort:             getEnvInt("SMTP_PORT", defaultSMTPPort),
 		SMTPUsername:         getEnv("SMTP_USERNAME", ""),
 		SMTPPassword:         getEnv("SMTP_PASSWORD", ""),
+		SMTPTLSMode:          getEnv("SMTP_TLS_MODE", defaultSMTPTLSMode),
 		EmailFrom:            getEnv("EMAIL_FROM", defaultSenderEmail),
+		AppBaseURL:           getEnv("APP_BASE_URL", defaultAppBaseURL),
 		DevMode:              getEnvBool("DEV_MODE", defaultDevMode),
 		OpenAPISpecPath:      getEnv("OPENAPI_SPEC_PATH", defaultOpenAPISpec),
 		TrustedProxyCIDRs:    getEnv("TRUSTED_PROXY_CIDRS", ""),
@@ -155,6 +161,15 @@ func (c Config) ValidateSMTP() error {
 	}
 	if c.SMTPPort <= 0 {
 		return ErrSMTPPortInvalid
+	}
+	mode := strings.ToLower(strings.TrimSpace(c.SMTPTLSMode))
+	if mode == "" {
+		mode = defaultSMTPTLSMode
+	}
+	switch mode {
+	case "starttls", "implicit", "none":
+	default:
+		return errors.New("SMTP_TLS_MODE must be starttls, implicit or none")
 	}
 	return nil
 }

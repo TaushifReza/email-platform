@@ -118,6 +118,24 @@ type Session struct {
 	StepUpExpiresAt   sql.NullTime
 }
 
+type SystemEmail struct {
+	ID             string
+	OrganizationID string
+	UserID         sql.NullString
+	Kind           string
+	RecipientEmail string
+	Subject        string
+	BodyText       string
+	BodyHtml       sql.NullString
+	Status         string
+	AttemptCount   int32
+	NextAttemptAt  time.Time
+	LeaseExpiresAt sql.NullTime
+	SentAt         sql.NullTime
+	LastError      sql.NullString
+	CreatedAt      time.Time
+}
+
 type User struct {
 	ID                 string
 	OrganizationID     string

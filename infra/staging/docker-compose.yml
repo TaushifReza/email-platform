@@ -10,7 +10,9 @@ x-app-environment: &app-environment
   SMTP_PORT: "1025"
   SMTP_USERNAME: ""
   SMTP_PASSWORD: ""
+  SMTP_TLS_MODE: "none"
   EMAIL_FROM: noreply@example.com
+  APP_BASE_URL: "http://localhost:8081"
   LOG_LEVEL: info
 
 services:

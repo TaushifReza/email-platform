@@ -15,3 +15,4 @@
 | OQ-11 | Local model throughput and rework rate | Measure after WP01 |
 | OQ-12 | How should the pre-auth login lookup find a user by email when forced RLS needs `app.org_id` before authentication? | Resolved (WP02.3): `SECURITY DEFINER` function `auth_lookup_user` owned by `email_system`, executable by `email_app`, returning only login fields. |
 | OQ-13 | Lockout threshold and duration (proposed 5 failures / 15 minutes) and Redis outage behavior (proposed fail closed) for login | Open (WP02.3). Defaults in use pending owner confirmation. |
+| OQ-15 | System sender SMTP may use explicit `SMTP_TLS_MODE=none` for Mailpit dev/staging; production requires starttls/implicit | Open (WP02.6) |

@@ -79,6 +79,12 @@ func (e ReadyResponseStatus) Valid() bool {
 	}
 }
 
+// AcceptInvitationRequest defines model for AcceptInvitationRequest.
+type AcceptInvitationRequest struct {
+	Password string `json:"password"`
+	Token    string `json:"token"`
+}
+
 // FieldError defines model for FieldError.
 type FieldError struct {
 	Code    string `json:"code"`
@@ -118,6 +124,17 @@ type MFARecoveryResponse struct {
 // MFAVerifyRequest defines model for MFAVerifyRequest.
 type MFAVerifyRequest struct {
 	Code string `json:"code"`
+}
+
+// PasswordResetConfirm defines model for PasswordResetConfirm.
+type PasswordResetConfirm struct {
+	Password string `json:"password"`
+	Token    string `json:"token"`
+}
+
+// PasswordResetRequest defines model for PasswordResetRequest.
+type PasswordResetRequest struct {
+	Email string `json:"email"`
 }
 
 // Problem defines model for Problem.
@@ -168,6 +185,9 @@ type StepUpRequest struct {
 	Password string `json:"password"`
 }
 
+// AcceptInvitationJSONRequestBody defines body for AcceptInvitation for application/json ContentType.
+type AcceptInvitationJSONRequestBody = AcceptInvitationRequest
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
@@ -177,11 +197,20 @@ type ConfirmMFAEnrollmentJSONRequestBody = MFAVerifyRequest
 // VerifyMFAJSONRequestBody defines body for VerifyMFA for application/json ContentType.
 type VerifyMFAJSONRequestBody = MFAVerifyRequest
 
+// ResetPasswordJSONRequestBody defines body for ResetPassword for application/json ContentType.
+type ResetPasswordJSONRequestBody = PasswordResetConfirm
+
+// RequestPasswordResetJSONRequestBody defines body for RequestPasswordReset for application/json ContentType.
+type RequestPasswordResetJSONRequestBody = PasswordResetRequest
+
 // StepUpJSONRequestBody defines body for StepUp for application/json ContentType.
 type StepUpJSONRequestBody = StepUpRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// AcceptInvitation Accept an invitation
+	// (POST /auth/invitations/accept)
+	AcceptInvitation(c *gin.Context)
 	// Login Authenticate with email and password
 	// (POST /auth/login)
 	Login(c *gin.Context)
@@ -197,6 +226,12 @@ type ServerInterface interface {
 	// VerifyMFA Complete a pending MFA challenge
 	// (POST /auth/mfa/verify)
 	VerifyMFA(c *gin.Context)
+	// ResetPassword Confirm a password reset
+	// (POST /auth/password-reset/confirm)
+	ResetPassword(c *gin.Context)
+	// RequestPasswordReset Request a password reset link
+	// (POST /auth/password-reset/request)
+	RequestPasswordReset(c *gin.Context)
 	// GetSession Return the authenticated session
 	// (GET /auth/session)
 	GetSession(c *gin.Context)
@@ -219,6 +254,19 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(c *gin.Context)
+
+// AcceptInvitation operation middleware
+func (siw *ServerInterfaceWrapper) AcceptInvitation(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.AcceptInvitation(c)
+}
 
 // Login operation middleware
 func (siw *ServerInterfaceWrapper) Login(c *gin.Context) {
@@ -283,6 +331,32 @@ func (siw *ServerInterfaceWrapper) VerifyMFA(c *gin.Context) {
 	}
 
 	siw.Handler.VerifyMFA(c)
+}
+
+// ResetPassword operation middleware
+func (siw *ServerInterfaceWrapper) ResetPassword(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ResetPassword(c)
+}
+
+// RequestPasswordReset operation middleware
+func (siw *ServerInterfaceWrapper) RequestPasswordReset(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RequestPasswordReset(c)
 }
 
 // GetSession operation middleware
@@ -369,6 +443,9 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.POST(options.BaseURL+"/auth/login", wrapper.Login)
 	router.POST(options.BaseURL+"/auth/logout", wrapper.Logout)
 	router.GET(options.BaseURL+"/auth/session", wrapper.GetSession)
+	router.POST(options.BaseURL+"/auth/invitations/accept", wrapper.AcceptInvitation)
+	router.POST(options.BaseURL+"/auth/password-reset/request", wrapper.RequestPasswordReset)
+	router.POST(options.BaseURL+"/auth/password-reset/confirm", wrapper.ResetPassword)
 	router.POST(options.BaseURL+"/auth/mfa/enroll", wrapper.EnrollMFA)
 	router.POST(options.BaseURL+"/auth/mfa/enroll/confirm", wrapper.ConfirmMFAEnrollment)
 	router.POST(options.BaseURL+"/auth/mfa/verify", wrapper.VerifyMFA)

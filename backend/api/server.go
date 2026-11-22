@@ -22,9 +22,13 @@ type Server struct {
 	health *health.Service
 	auth   AuthService
 	mfa    MFAService
+	access AccessService
 	logger *zap.Logger
 	cfg    config.Config
 }
+
+// SetAccessService attaches the access service.
+func (s *Server) SetAccessService(a AccessService) { s.access = a }
 
 // SetMFAService attaches the MFA service.
 func (s *Server) SetMFAService(m MFAService) { s.mfa = m }

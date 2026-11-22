@@ -19,6 +19,13 @@ var ErrPasswordWhitespace = errors.New("identity: password must contain non-whit
 // ErrPasswordCommon is returned for common passwords.
 var ErrPasswordCommon = errors.New("identity: password is too common")
 
+func IsPasswordPolicyError(err error) bool {
+	return errors.Is(err, ErrPasswordTooShort) ||
+		errors.Is(err, ErrPasswordTooLong) ||
+		errors.Is(err, ErrPasswordWhitespace) ||
+		errors.Is(err, ErrPasswordCommon)
+}
+
 //go:embed common_passwords.txt
 var commonPasswordsRaw string
 

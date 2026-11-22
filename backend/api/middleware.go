@@ -37,6 +37,12 @@ func isPublicPath(path string) bool {
 		return true
 	case path == "/auth/login":
 		return true
+	case path == "/auth/invitations/accept":
+		return true
+	case path == "/auth/password-reset/request":
+		return true
+	case path == "/auth/password-reset/confirm":
+		return true
 	case path == "/docs" || path == "/openapi.yaml":
 		return true
 	case strings.HasPrefix(path, "/u/"):

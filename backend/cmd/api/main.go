@@ -18,6 +18,7 @@ import (
 	"github.com/TaushifReza/email-platform/backend/internal/platform/db"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/health"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/logging"
+	"github.com/TaushifReza/email-platform/backend/internal/platform/outbox"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/ratelimit"
 	"github.com/gin-gonic/gin"
 	redis "github.com/go-redis/redis/v8"
@@ -92,6 +93,9 @@ func main() {
 		loginLimiter, clock.System{}, identity.DefaultLockoutPolicy, identity.DefaultSessionPolicy)
 	mfaService := identity.NewMFAService(mfaRepo, sessionRepo, hasher,
 		loginLimiter, clock.System{}, keyring)
+	outboxStore := outbox.NewStore(pool)
+	accessRepo := identity.NewAccessRepository(pool, outboxStore)
+	accessService := identity.NewAccessService(accessRepo, hasher, clock.System{}, cfg.AppBaseURL, loginLimiter)
 
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
@@ -100,6 +104,7 @@ func main() {
 		identityService,
 		logger)
 	server.SetMFAService(mfaService)
+	server.SetAccessService(accessService)
 	server.SetConfig(cfg)
 	router.Use(api.RequestIDMiddleware())
 	router.Use(api.CSRFMiddleware())

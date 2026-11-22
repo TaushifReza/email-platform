@@ -92,6 +92,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/invitations/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept an invitation */
+        post: operations["acceptInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/password-reset/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Request a password reset link */
+        post: operations["requestPasswordReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/password-reset/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm a password reset */
+        post: operations["resetPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/mfa/enroll": {
         parameters: {
             query?: never;
@@ -194,6 +245,17 @@ export interface components {
             organization_id: string;
             role: string;
             mfa_verified: boolean;
+        };
+        AcceptInvitationRequest: {
+            token: string;
+            password: string;
+        };
+        PasswordResetRequest: {
+            email: string;
+        };
+        PasswordResetConfirm: {
+            token: string;
+            password: string;
         };
         Problem: {
             /** @example about:blank */
@@ -410,6 +472,117 @@ export interface operations {
             };
             /** @description Unauthenticated */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    acceptInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptInvitationRequest"];
+            };
+        };
+        responses: {
+            /** @description Invitation accepted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid or expired invitation */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Password policy violation */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    requestPasswordReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Request accepted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many attempts */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    resetPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetConfirm"];
+            };
+        };
+        responses: {
+            /** @description Password reset */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid or expired reset link */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Password policy violation */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
