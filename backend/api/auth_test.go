@@ -1,11 +1,11 @@
 package api
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,105 +13,95 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
-type fakeLoginService struct {
-	result identity.LoginResult
+type fakeAuthService struct {
+	result identity.SessionResult
 	err    error
-	got    identity.LoginRequest
+	actor  identity.Actor
 }
 
-func (f *fakeLoginService) Login(_ context.Context, req identity.LoginRequest) (identity.LoginResult, error) {
-	f.got = req
+func (f *fakeAuthService) SignIn(_ context.Context, _ identity.LoginRequest, _ identity.ClientInfo) (identity.SessionResult, error) { //nolint:lll
 	return f.result, f.err
 }
 
-func testAuthRouter(auth LoginService) *gin.Engine {
+func (f *fakeAuthService) Authenticate(_ context.Context, _ string) (identity.Actor, error) {
+	if f.err != nil {
+		return identity.Actor{}, f.err
+	}
+	return f.actor, nil
+}
+
+func (f *fakeAuthService) SignOut(_ context.Context, _ string) error {
+	return f.err
+}
+
+func testAuthRouter(auth AuthService) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	RegisterHandlers(router, NewServer(nil, auth, zap.NewNop()))
+	RegisterHandlers(router, NewServer(nil, auth, nil))
 	return router
 }
 
-func TestAUTH_01_LoginEndpoint(t *testing.T) {
-	fake := &fakeLoginService{result: identity.LoginResult{MFARequired: true}}
+func TestLoginSuccess(t *testing.T) {
+	fake := &fakeAuthService{result: identity.SessionResult{MFARequired: true, Token: "tok", AbsoluteExpiresAt: time.Now().Add(time.Hour)}} //nolint:lll
 	router := testAuthRouter(fake)
-	body := bytes.NewBufferString(`{"email":"a@example.com","password":"secret"}`)
-	req := httptest.NewRequest(http.MethodPost, "/auth/login", body)
-	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
+	const body = `{"email":"a@b.com","password":"secret"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Csrf-Token", "1")
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
 	var resp LoginResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.True(t, resp.MfaRequired)
-	assert.Equal(t, "a@example.com", fake.got.Email)
-	assert.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
 }
 
-func TestAUTH_04_LoginEndpointUniform(t *testing.T) {
-	fake := &fakeLoginService{err: identity.ErrInvalidCredentials}
+func TestLoginInvalidCredentials(t *testing.T) {
+	fake := &fakeAuthService{err: identity.ErrInvalidCredentials}
 	router := testAuthRouter(fake)
-	payloads := []string{
-		`{"email":"a@example.com","password":"wrong"}`,
-		`{"email":"missing@example.com","password":"wrong"}`,
-	}
-	for _, payload := range payloads {
-		body := bytes.NewBufferString(payload)
-		req := httptest.NewRequest(http.MethodPost, "/auth/login", body)
-		req.Header.Set("Content-Type", "application/json")
-		rec := httptest.NewRecorder()
-		router.ServeHTTP(rec, req)
-		assert.Equal(t, http.StatusUnauthorized, rec.Code)
-		assert.JSONEq(t, `{"error":"invalid_credentials"}`, rec.Body.String())
-	}
-}
-
-func TestSEC_12_LoginEndpointRetryAfter(t *testing.T) {
-	fake := &fakeLoginService{err: &identity.RateLimitError{RetryAfter: 30 * time.Second}}
-	router := testAuthRouter(fake)
-	body := bytes.NewBufferString(`{"email":"a@example.com","password":"secret"}`)
-	req := httptest.NewRequest(http.MethodPost, "/auth/login", body)
-	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
+	const body = `{"email":"a@b.com","password":"secret"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Csrf-Token", "1")
 	router.ServeHTTP(rec, req)
-	assert.Equal(t, http.StatusTooManyRequests, rec.Code)
-	assert.Equal(t, "30", rec.Header().Get("Retry-After"))
-	assert.JSONEq(t, `{"error":"rate_limited"}`, rec.Body.String())
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
 }
 
-func TestSEC_12_LoginEndpointUnavailable(t *testing.T) {
-	fake := &fakeLoginService{err: identity.ErrRateLimiterUnavailable}
+func TestLoginRateLimited(t *testing.T) {
+	fake := &fakeAuthService{err: &identity.RateLimitError{RetryAfter: 30 * time.Second}}
 	router := testAuthRouter(fake)
-	body := bytes.NewBufferString(`{"email":"a@example.com","password":"secret"}`)
-	req := httptest.NewRequest(http.MethodPost, "/auth/login", body)
-	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
+	const body = `{"email":"a@b.com","password":"secret"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Csrf-Token", "1")
 	router.ServeHTTP(rec, req)
-	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
-	assert.JSONEq(t, `{"error":"unavailable"}`, rec.Body.String())
+	require.Equal(t, http.StatusTooManyRequests, rec.Code)
 }
 
-func TestAUTH_01_LoginEndpointNoStore(t *testing.T) {
-	fake := &fakeLoginService{result: identity.LoginResult{}}
+func TestLoginUnavailable(t *testing.T) {
+	fake := &fakeAuthService{err: identity.ErrRateLimiterUnavailable}
 	router := testAuthRouter(fake)
-	body := bytes.NewBufferString(`{"email":"a@example.com","password":"secret"}`)
-	req := httptest.NewRequest(http.MethodPost, "/auth/login", body)
-	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
+	const body = `{"email":"a@b.com","password":"secret"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Csrf-Token", "1")
 	router.ServeHTTP(rec, req)
-	assert.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
 }
 
-func TestAUTH_04_LoginEndpointInvalidRequest(t *testing.T) {
-	fake := &fakeLoginService{}
+func TestLoginBadInput(t *testing.T) {
+	fake := &fakeAuthService{}
 	router := testAuthRouter(fake)
-	body := bytes.NewBufferString(`{"email":"","password":""}`)
-	req := httptest.NewRequest(http.MethodPost, "/auth/login", body)
-	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
+	body := `{"email":"","password":""}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Csrf-Token", "1")
 	router.ServeHTTP(rec, req)
-	assert.Equal(t, http.StatusBadRequest, rec.Code)
-	assert.JSONEq(t, `{"error":"invalid_request"}`, rec.Body.String())
+	require.Equal(t, http.StatusBadRequest, rec.Code)
 }

@@ -1,24 +1,22 @@
 package api
 
 import (
-	"context"
 	"errors"
 	"math"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/TaushifReza/email-platform/backend/internal/identity"
+	"github.com/TaushifReza/email-platform/backend/internal/platform/httpx"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
 const maxLoginBodyBytes = 4096
 
-// LoginService is the login dependency used by handlers.
-type LoginService interface {
-	Login(ctx context.Context, req identity.LoginRequest) (identity.LoginResult, error)
-}
+const Unauthorized = "unauthorized"
 
 // Login implements POST /auth/login.
 func (s *Server) Login(c *gin.Context) {
@@ -35,8 +33,13 @@ func (s *Server) Login(c *gin.Context) {
 		return
 	}
 
-	result, err := s.auth.Login(c.Request.Context(), identity.LoginRequest{Email: req.Email, Password: req.Password})
+	info := identity.ClientInfo{
+		IP:        httpx.ClientIP(c.Request, s.cfg.TrustedProxyCIDRs),
+		UserAgent: c.Request.UserAgent(),
+	}
+	result, err := s.auth.SignIn(c.Request.Context(), identity.LoginRequest{Email: req.Email, Password: req.Password}, info) //nolint:lll
 	if err == nil {
+		setSessionCookie(c.Writer, s.cfg, result.Token, int(time.Until(result.AbsoluteExpiresAt).Seconds()))
 		c.JSON(http.StatusOK, LoginResponse{MfaRequired: result.MFARequired})
 		return
 	}
@@ -61,4 +64,27 @@ func (s *Server) Login(c *gin.Context) {
 	}
 	s.logger.Error("login failed", zap.Error(err))
 	c.JSON(http.StatusInternalServerError, ErrorResponse{Error: InternalError})
+}
+
+// Logout implements POST /auth/logout.
+func (s *Server) Logout(c *gin.Context) {
+	token, _ := c.Cookie(cookieName(s.cfg))        //nolint:errcheck
+	_ = s.auth.SignOut(c.Request.Context(), token) //nolint:errcheck
+	clearSessionCookie(c.Writer, s.cfg)
+	c.Status(http.StatusNoContent)
+}
+
+// GetSession implements GET /auth/session.
+func (s *Server) GetSession(c *gin.Context) {
+	actor, ok := ActorFrom(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: Unauthorized})
+		return
+	}
+	c.JSON(http.StatusOK, SessionResponse{
+		UserId:         actor.UserID,
+		OrganizationId: actor.OrganizationID,
+		Role:           actor.Role,
+		MfaVerified:    true,
+	})
 }

@@ -48,6 +48,10 @@ paths:
       responses:
         '200':
           description: Credentials accepted
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
           content:
             application/json:
               schema:
@@ -64,18 +68,56 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: CSRF rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '429':
           description: Too many attempts
-          headers:
-            Retry-After:
-              schema:
-                type: integer
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
           description: Authentication unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: End the current session
+      responses:
+        '204':
+          description: Session ended
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: CSRF rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/session:
+    get:
+      operationId: getSession
+      summary: Return the authenticated session
+      responses:
+        '200':
+          description: Session details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '401':
+          description: Unauthenticated
           content:
             application/json:
               schema:
@@ -132,6 +174,22 @@ components:
         - mfa_required
       properties:
         mfa_required:
+          type: boolean
+    SessionResponse:
+      type: object
+      required:
+        - user_id
+        - organization_id
+        - role
+        - mfa_verified
+      properties:
+        user_id:
+          type: string
+        organization_id:
+          type: string
+        role:
+          type: string
+        mfa_verified:
           type: boolean
     ErrorResponse:
       type: object

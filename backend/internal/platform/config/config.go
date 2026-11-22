@@ -49,6 +49,8 @@ type Config struct {
 	EmailFrom            string
 	DevMode              bool
 	OpenAPISpecPath      string
+	TrustedProxyCIDRs    string
+	CookieSecure         bool
 }
 
 // Load reads configuration from environment variables and *_FILE secrets.
@@ -73,6 +75,8 @@ func Load() (Config, error) {
 		EmailFrom:            getEnv("EMAIL_FROM", defaultSenderEmail),
 		DevMode:              getEnvBool("DEV_MODE", defaultDevMode),
 		OpenAPISpecPath:      getEnv("OPENAPI_SPEC_PATH", defaultOpenAPISpec),
+		TrustedProxyCIDRs:    getEnv("TRUSTED_PROXY_CIDRS", ""),
+		CookieSecure:         getEnvBool("COOKIE_SECURE", true),
 	}
 
 	secrets := []struct {

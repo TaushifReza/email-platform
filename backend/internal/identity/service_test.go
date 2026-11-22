@@ -71,9 +71,9 @@ func TestAUTH_01_LoginValid(t *testing.T) {
 		Status: statusActive, Role: "viewer",
 	}}
 	verifier := &fakeVerifier{valid: true}
-	svc := NewService(repo, verifier,
+	svc := NewService(repo, nil, verifier,
 		&fakeLimiter{decision: ratelimit.Decision{Allowed: true}},
-		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute})
+		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute}, DefaultSessionPolicy)
 	res, err := svc.Login(context.Background(), LoginRequest{Email: "User@Example.com", Password: "secret"})
 	require.NoError(t, err)
 	assert.Equal(t, "u1", res.UserID)
@@ -89,9 +89,9 @@ func TestAUTH_01_LoginNormalizesEmail(t *testing.T) {
 		Status: statusActive, Role: "viewer",
 	}}
 	verifier := &fakeVerifier{valid: true}
-	svc := NewService(repo, verifier,
+	svc := NewService(repo, nil, verifier,
 		&fakeLimiter{decision: ratelimit.Decision{Allowed: true}},
-		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute})
+		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute}, DefaultSessionPolicy)
 	_, err := svc.Login(context.Background(), LoginRequest{Email: "  USER@Example.com  ", Password: "secret"})
 	require.NoError(t, err)
 }
@@ -104,9 +104,9 @@ func TestAUTH_02_LoginMFAForOwnerAdmin(t *testing.T) {
 			Status: statusActive, Role: role,
 		}}
 		verifier := &fakeVerifier{valid: true}
-		svc := NewService(repo, verifier,
+		svc := NewService(repo, nil, verifier,
 			&fakeLimiter{decision: ratelimit.Decision{Allowed: true}},
-			fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute})
+			fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute}, DefaultSessionPolicy)
 		res, err := svc.Login(context.Background(), LoginRequest{Email: "a@example.com", Password: "secret"})
 		require.NoError(t, err)
 		assert.True(t, res.MFARequired)
@@ -116,9 +116,9 @@ func TestAUTH_02_LoginMFAForOwnerAdmin(t *testing.T) {
 		Status: statusActive, Role: "viewer",
 	}}
 	verifier := &fakeVerifier{valid: true}
-	svc := NewService(repo, verifier,
+	svc := NewService(repo, nil, verifier,
 		&fakeLimiter{decision: ratelimit.Decision{Allowed: true}},
-		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute})
+		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute}, DefaultSessionPolicy)
 	res, err := svc.Login(context.Background(), LoginRequest{Email: "a@example.com", Password: "secret"})
 	require.NoError(t, err)
 	assert.False(t, res.MFARequired)
@@ -128,9 +128,9 @@ func TestAUTH_04_LoginUnknownUniform(t *testing.T) {
 	now := time.Now().UTC()
 	repo := &fakeRepo{lookupErr: ErrUserNotFound}
 	verifier := &fakeVerifier{}
-	svc := NewService(repo, verifier,
+	svc := NewService(repo, nil, verifier,
 		&fakeLimiter{decision: ratelimit.Decision{Allowed: true}},
-		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute})
+		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute}, DefaultSessionPolicy)
 	_, err := svc.Login(context.Background(), LoginRequest{Email: "missing@example.com", Password: "secret"})
 	require.ErrorIs(t, err, ErrInvalidCredentials)
 	assert.Equal(t, 1, verifier.dummy)
@@ -143,9 +143,9 @@ func TestAUTH_04_LoginWrongUniform(t *testing.T) {
 		Status: statusActive, Role: "viewer",
 	}}
 	verifier := &fakeVerifier{valid: false}
-	svc := NewService(repo, verifier,
+	svc := NewService(repo, nil, verifier,
 		&fakeLimiter{decision: ratelimit.Decision{Allowed: true}},
-		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute})
+		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute}, DefaultSessionPolicy)
 	_, err := svc.Login(context.Background(), LoginRequest{Email: "a@example.com", Password: "wrong"})
 	require.ErrorIs(t, err, ErrInvalidCredentials)
 	assert.Equal(t, 1, repo.failedCalls)
@@ -158,9 +158,9 @@ func TestAUTH_04_LoginInactiveUniform(t *testing.T) {
 		Status: "deactivated", Role: "viewer",
 	}}
 	verifier := &fakeVerifier{valid: true}
-	svc := NewService(repo, verifier,
+	svc := NewService(repo, nil, verifier,
 		&fakeLimiter{decision: ratelimit.Decision{Allowed: true}},
-		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute})
+		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute}, DefaultSessionPolicy)
 	_, err := svc.Login(context.Background(), LoginRequest{Email: "a@example.com", Password: "secret"})
 	require.ErrorIs(t, err, ErrInvalidCredentials)
 	assert.Equal(t, 0, repo.failedCalls)
@@ -174,9 +174,9 @@ func TestAUTH_04_LoginLockedUniform(t *testing.T) {
 		Status: statusActive, Role: "viewer", LockedUntil: &locked,
 	}}
 	verifier := &fakeVerifier{valid: true}
-	svc := NewService(repo, verifier,
+	svc := NewService(repo, nil, verifier,
 		&fakeLimiter{decision: ratelimit.Decision{Allowed: true}},
-		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute})
+		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute}, DefaultSessionPolicy)
 	_, err := svc.Login(context.Background(), LoginRequest{Email: "a@example.com", Password: "secret"})
 	require.ErrorIs(t, err, ErrInvalidCredentials)
 	assert.Equal(t, 0, repo.failedCalls)
@@ -189,9 +189,9 @@ func TestAUTH_04_LoginLocksAfterThreshold(t *testing.T) {
 		Status: statusActive, Role: "viewer",
 	}}
 	verifier := &fakeVerifier{valid: false}
-	svc := NewService(repo, verifier,
+	svc := NewService(repo, nil, verifier,
 		&fakeLimiter{decision: ratelimit.Decision{Allowed: true}},
-		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute})
+		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute}, DefaultSessionPolicy)
 	_, _ = svc.Login(context.Background(), LoginRequest{Email: "a@example.com", Password: "wrong"}) //nolint:errcheck
 	_, _ = svc.Login(context.Background(), LoginRequest{Email: "a@example.com", Password: "wrong"}) //nolint:errcheck
 	assert.Equal(t, 2, repo.failedCalls)
@@ -204,9 +204,9 @@ func TestAUTH_04_LoginClearsFailures(t *testing.T) {
 		Status: statusActive, Role: "viewer", FailedLoginCount: 3,
 	}}
 	verifier := &fakeVerifier{valid: true}
-	svc := NewService(repo, verifier,
+	svc := NewService(repo, nil, verifier,
 		&fakeLimiter{decision: ratelimit.Decision{Allowed: true}},
-		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute})
+		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute}, DefaultSessionPolicy)
 	_, err := svc.Login(context.Background(), LoginRequest{Email: "a@example.com", Password: "secret"})
 	require.NoError(t, err)
 	assert.Equal(t, 1, repo.clearCalls)
@@ -220,9 +220,9 @@ func TestAUTH_04_LoginLockExpiryResets(t *testing.T) {
 		Status: statusActive, Role: "viewer",
 	}}
 	verifier := &fakeVerifier{valid: false}
-	svc := NewService(repo, verifier,
+	svc := NewService(repo, nil, verifier,
 		&fakeLimiter{decision: ratelimit.Decision{Allowed: true}},
-		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute})
+		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute}, DefaultSessionPolicy)
 	_, _ = svc.Login(context.Background(), LoginRequest{Email: "a@example.com", Password: "wrong"}) //nolint:errcheck
 	assert.Equal(t, 1, repo.failedCalls)
 }
@@ -235,7 +235,7 @@ func TestSEC_12_LoginRateLimited(t *testing.T) {
 	}}
 	verifier := &fakeVerifier{valid: true}
 	limiter := &fakeLimiter{decision: ratelimit.Decision{Allowed: false, RetryAfter: 30 * time.Second}}
-	svc := NewService(repo, verifier, limiter, fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute})
+	svc := NewService(repo, nil, verifier, limiter, fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute}, DefaultSessionPolicy) //nolint:lll
 	_, err := svc.Login(context.Background(), LoginRequest{Email: "a@example.com", Password: "secret"})
 	var rl *RateLimitError
 	ok := errors.As(err, &rl)
@@ -252,7 +252,7 @@ func TestSEC_12_LoginLimiterUnavailableFailsClosed(t *testing.T) {
 	}}
 	verifier := &fakeVerifier{valid: true}
 	limiter := &fakeLimiter{err: ratelimit.ErrCounterUnavailable}
-	svc := NewService(repo, verifier, limiter, fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute})
+	svc := NewService(repo, nil, verifier, limiter, fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute}, DefaultSessionPolicy) //nolint:lll
 	_, err := svc.Login(context.Background(), LoginRequest{Email: "a@example.com", Password: "secret"})
 	require.ErrorIs(t, err, ErrRateLimiterUnavailable)
 }
@@ -265,7 +265,7 @@ func TestSEC_16_RateLimitKeyHidesEmail(t *testing.T) {
 	}}
 	verifier := &fakeVerifier{valid: true}
 	limiter := &fakeLimiter{decision: ratelimit.Decision{Allowed: true}}
-	svc := NewService(repo, verifier, limiter, fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute})
+	svc := NewService(repo, nil, verifier, limiter, fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute}, DefaultSessionPolicy) //nolint:lll
 	_, err := svc.Login(context.Background(), LoginRequest{Email: "secret@example.com", Password: "password"})
 	require.NoError(t, err)
 	require.Len(t, limiter.keys, 1)
@@ -279,7 +279,7 @@ func TestAUTH_04_LoginNoLimiter(t *testing.T) {
 		Status: statusActive, Role: "viewer",
 	}}
 	verifier := &fakeVerifier{valid: true}
-	svc := NewService(repo, verifier, nil, fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute})
+	svc := NewService(repo, nil, verifier, nil, fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute}, DefaultSessionPolicy) //nolint:lll
 	_, err := svc.Login(context.Background(), LoginRequest{Email: "a@example.com", Password: "secret"})
 	require.ErrorIs(t, err, ErrRateLimiterUnavailable)
 }
@@ -291,9 +291,9 @@ func TestAUTH_04_LoginMFAEnrolled(t *testing.T) {
 		Status: statusActive, Role: "viewer", MFAEnrolled: true,
 	}}
 	verifier := &fakeVerifier{valid: true}
-	svc := NewService(repo, verifier,
+	svc := NewService(repo, nil, verifier,
 		&fakeLimiter{decision: ratelimit.Decision{Allowed: true}},
-		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute})
+		fakeClock{now: now}, LockoutPolicy{Threshold: 2, Duration: time.Minute}, DefaultSessionPolicy)
 	res, err := svc.Login(context.Background(), LoginRequest{Email: "a@example.com", Password: "secret"})
 	require.NoError(t, err)
 	assert.True(t, res.MFARequired)

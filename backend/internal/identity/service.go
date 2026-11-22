@@ -104,16 +104,18 @@ var DefaultLockoutPolicy = LockoutPolicy{
 
 // Service authenticates users.
 type Service struct {
-	repo    Repository
-	hasher  PasswordVerifier
-	limiter RateLimiter
-	clock   clock.Clock
-	lockout LockoutPolicy
+	repo     Repository
+	sessions SessionRepository
+	hasher   PasswordVerifier
+	limiter  RateLimiter
+	clock    clock.Clock
+	lockout  LockoutPolicy
+	session  SessionPolicy
 }
 
 // NewService creates an identity service.
-func NewService(repo Repository, hasher PasswordVerifier,
-	limiter RateLimiter, clk clock.Clock, lockout LockoutPolicy,
+func NewService(repo Repository, sessions SessionRepository, hasher PasswordVerifier,
+	limiter RateLimiter, clk clock.Clock, lockout LockoutPolicy, sessionPolicy SessionPolicy,
 ) *Service {
 	if clk == nil {
 		clk = clock.System{}
@@ -124,7 +126,10 @@ func NewService(repo Repository, hasher PasswordVerifier,
 	if lockout.Duration <= 0 {
 		lockout = DefaultLockoutPolicy
 	}
-	return &Service{repo: repo, hasher: hasher, limiter: limiter, clock: clk, lockout: lockout}
+	if sessionPolicy.PrivilegedIdle <= 0 {
+		sessionPolicy = DefaultSessionPolicy
+	}
+	return &Service{repo: repo, sessions: sessions, hasher: hasher, limiter: limiter, clock: clk, lockout: lockout, session: sessionPolicy} //nolint:lll
 }
 
 // Login verifies credentials and applies lockout and rate limits.
@@ -133,7 +138,7 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (LoginResult, err
 	if email == "" {
 		return LoginResult{}, ErrInvalidCredentials
 	}
-	if err := s.checkRateLimit(ctx, email); err != nil {
+	if err := s.checkRateLimit(ctx, email, ""); err != nil {
 		return LoginResult{}, err
 	}
 
@@ -181,12 +186,15 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (LoginResult, err
 	}, nil
 }
 
-func (s *Service) checkRateLimit(ctx context.Context, email string) error {
+func (s *Service) checkRateLimit(ctx context.Context, email, ip string) error {
 	if s.limiter == nil {
 		return ErrRateLimiterUnavailable
 	}
-	key := loginAccountKey(email)
-	decision, err := s.limiter.Allow(ctx, []ratelimit.Key{{Name: key, Limit: loginRateLimit, Window: loginRateWindow}})
+	keys := []ratelimit.Key{{Name: loginAccountKey(email), Limit: loginRateLimit, Window: loginRateWindow}}
+	if ip != "" {
+		keys = append(keys, ratelimit.Key{Name: "login:ip:" + ip, Limit: loginRateLimit, Window: loginRateWindow})
+	}
+	decision, err := s.limiter.Allow(ctx, keys)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrRateLimiterUnavailable, err)
 	}
@@ -194,6 +202,86 @@ func (s *Service) checkRateLimit(ctx context.Context, email string) error {
 		return &RateLimitError{RetryAfter: decision.RetryAfter}
 	}
 	return nil
+}
+
+// SignIn authenticates and issues a session.
+func (s *Service) SignIn(ctx context.Context, req LoginRequest, info ClientInfo) (SessionResult, error) {
+	email := normalizeEmail(req.Email)
+	if email == "" {
+		return SessionResult{}, ErrInvalidCredentials
+	}
+	if err := s.checkRateLimit(ctx, email, info.IP); err != nil {
+		return SessionResult{}, err
+	}
+
+	creds, err := s.repo.LookupForLogin(ctx, email)
+	if errors.Is(err, ErrUserNotFound) {
+		_ = s.hasher.VerifyDummy(req.Password) //nolint:errcheck
+		return SessionResult{}, ErrInvalidCredentials
+	}
+	if err != nil {
+		return SessionResult{}, fmt.Errorf("identity: lookup user: %w", err)
+	}
+
+	now := s.clock.Now()
+	if creds.PasswordHash == "" {
+		_ = s.hasher.VerifyDummy(req.Password) //nolint:errcheck
+		return SessionResult{}, ErrInvalidCredentials
+	}
+	valid, err := s.hasher.Verify(creds.PasswordHash, req.Password)
+	if err != nil {
+		return SessionResult{}, fmt.Errorf("identity: verify password: %w", err)
+	}
+	locked := creds.LockedUntil != nil && creds.LockedUntil.After(now)
+
+	if !valid {
+		if creds.Status == statusActive && !locked {
+			if err := s.repo.RecordFailedLogin(ctx, creds.OrganizationID, creds.ID,
+				now, s.lockout.Threshold, now.Add(s.lockout.Duration)); err != nil {
+				return SessionResult{}, fmt.Errorf("identity: record failed login: %w", err)
+			}
+		}
+		return SessionResult{}, ErrInvalidCredentials
+	}
+	if creds.Status != statusActive || locked {
+		return SessionResult{}, ErrInvalidCredentials
+	}
+
+	if err := s.repo.ClearFailedLogins(ctx, creds.OrganizationID, creds.ID); err != nil {
+		return SessionResult{}, fmt.Errorf("identity: clear failed logins: %w", err)
+	}
+
+	result := LoginResult{
+		UserID:         creds.ID,
+		OrganizationID: creds.OrganizationID,
+		Role:           creds.Role,
+		MFARequired:    mfaRequired(creds.Role) || creds.MFAEnrolled,
+	}
+
+	sess, err := IssueSession(ctx, s.sessions, s.clock, s.session, result, info)
+	if err != nil {
+		return SessionResult{}, fmt.Errorf("identity: issue session: %w", err)
+	}
+	return sess, nil
+}
+
+// Authenticate validates a raw session token and returns an Actor.
+func (s *Service) Authenticate(ctx context.Context, token string) (Actor, error) {
+	actor, rec, err := ValidateSession(ctx, s.sessions, s.clock, token)
+	if err != nil {
+		if errors.Is(err, ErrMFARequired) {
+			return Actor{}, ErrMFARequired
+		}
+		return Actor{}, ErrUnauthenticated
+	}
+	// Touch idle expiry best-effort.
+	_ = TouchSessionIfNeeded(ctx, s.sessions, s.clock, s.session, rec) //nolint:errcheck
+	return actor, nil
+}
+
+// SignOut revokes a session by raw token.
+func (s *Service) SignOut(ctx context.Context, token string) error {
+	return RevokeSessionToken(ctx, s.sessions, s.clock, token)
 }
 
 func normalizeEmail(email string) string {

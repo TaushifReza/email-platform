@@ -7,7 +7,71 @@ package sqlc
 
 import (
 	"context"
+	"encoding/json"
+	"time"
 )
+
+const createSession = `-- name: CreateSession :exec
+INSERT INTO sessions (id, organization_id, user_id, token_hash, mfa_verified, ip, user_agent, idle_expires_at, absolute_expires_at)
+VALUES ($1::uuid, $2::uuid, $3::uuid, $4::bytea, $5::boolean, $6::inet, $7::text, $8::timestamptz, $9::timestamptz)
+`
+
+type CreateSessionParams struct {
+	ID                string
+	OrganizationID    string
+	UserID            string
+	TokenHash         []byte
+	MfaVerified       bool
+	Ip                string
+	UserAgent         string
+	IdleExpiresAt     time.Time
+	AbsoluteExpiresAt time.Time
+}
+
+func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) error {
+	_, err := q.db.ExecContext(ctx, createSession,
+		arg.ID,
+		arg.OrganizationID,
+		arg.UserID,
+		arg.TokenHash,
+		arg.MfaVerified,
+		arg.Ip,
+		arg.UserAgent,
+		arg.IdleExpiresAt,
+		arg.AbsoluteExpiresAt,
+	)
+	return err
+}
+
+const lookupSession = `-- name: LookupSession :one
+SELECT auth_lookup_session($1::bytea) AS payload
+`
+
+func (q *Queries) LookupSession(ctx context.Context, tokenHash []byte) (json.RawMessage, error) {
+	row := q.db.QueryRowContext(ctx, lookupSession, tokenHash)
+	var payload json.RawMessage
+	err := row.Scan(&payload)
+	return payload, err
+}
+
+const revokeSession = `-- name: RevokeSession :exec
+UPDATE sessions
+SET revoked_at = $1::timestamptz
+WHERE organization_id = $2::uuid
+  AND token_hash = $3::bytea
+  AND revoked_at IS NULL
+`
+
+type RevokeSessionParams struct {
+	Now            time.Time
+	OrganizationID string
+	TokenHash      []byte
+}
+
+func (q *Queries) RevokeSession(ctx context.Context, arg RevokeSessionParams) error {
+	_, err := q.db.ExecContext(ctx, revokeSession, arg.Now, arg.OrganizationID, arg.TokenHash)
+	return err
+}
 
 const setAppRole = `-- name: SetAppRole :exec
 SET LOCAL ROLE email_app
@@ -24,5 +88,34 @@ SELECT set_config('app.org_id', $1::text, true)
 
 func (q *Queries) SetOrgID(ctx context.Context, orgID string) error {
 	_, err := q.db.ExecContext(ctx, setOrgID, orgID)
+	return err
+}
+
+const touchSession = `-- name: TouchSession :exec
+UPDATE sessions
+SET last_seen_at = $1::timestamptz,
+    idle_expires_at = $2::timestamptz
+WHERE organization_id = $3::uuid
+  AND id = $4::uuid
+  AND revoked_at IS NULL
+  AND idle_expires_at > $1::timestamptz
+  AND absolute_expires_at > $1::timestamptz
+  AND last_seen_at <= $1::timestamptz - interval '1 minute'
+`
+
+type TouchSessionParams struct {
+	Now            time.Time
+	IdleExpiresAt  time.Time
+	OrganizationID string
+	ID             string
+}
+
+func (q *Queries) TouchSession(ctx context.Context, arg TouchSessionParams) error {
+	_, err := q.db.ExecContext(ctx, touchSession,
+		arg.Now,
+		arg.IdleExpiresAt,
+		arg.OrganizationID,
+		arg.ID,
+	)
 	return err
 }

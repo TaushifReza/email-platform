@@ -73,6 +73,7 @@ func main() {
 	}
 
 	identityRepo := identity.NewRepository(pool)
+	sessionRepo := identity.NewSessionRepository(pool)
 	hasher, err := identity.NewHasher(identity.DefaultArgon2Params)
 	if err != nil {
 		logger.Fatal("Failed to create password hasher", zap.Error(err))
@@ -81,18 +82,19 @@ func main() {
 	if redisClient != nil {
 		loginLimiter = ratelimit.New(ratelimit.NewRedisCounter(redisClient))
 	}
-	identityService := identity.NewService(identityRepo, hasher,
-		loginLimiter, clock.System{}, identity.DefaultLockoutPolicy)
+	identityService := identity.NewService(identityRepo, sessionRepo, hasher,
+		loginLimiter, clock.System{}, identity.DefaultLockoutPolicy, identity.DefaultSessionPolicy)
 
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(gin.Recovery())
-	api.RegisterHandlers(
-		router,
-		api.NewServer(health.New(pool, redisHealth),
-			identityService,
-			logger),
-	)
+	server := api.NewServer(health.New(pool, redisHealth),
+		identityService,
+		logger)
+	server.SetConfig(cfg)
+	router.Use(api.CSRFMiddleware())
+	router.Use(api.AuthMiddleware(server))
+	api.RegisterHandlers(router, server)
 	if cfg.DevMode {
 		api.RegisterDevRoutes(router, cfg.OpenAPISpecPath)
 	}

@@ -94,6 +94,14 @@ type ReadyResponse struct {
 // ReadyResponseStatus Example: ok
 type ReadyResponseStatus string
 
+// SessionResponse defines model for SessionResponse.
+type SessionResponse struct {
+	MfaVerified    bool   `json:"mfa_verified"`
+	OrganizationId string `json:"organization_id"`
+	Role           string `json:"role"`
+	UserId         string `json:"user_id"`
+}
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
@@ -102,6 +110,12 @@ type ServerInterface interface {
 	// Login Authenticate with email and password
 	// (POST /auth/login)
 	Login(c *gin.Context)
+	// Logout End the current session
+	// (POST /auth/logout)
+	Logout(c *gin.Context)
+	// GetSession Return the authenticated session
+	// (GET /auth/session)
+	GetSession(c *gin.Context)
 	// GetHealth Liveness check
 	// (GET /healthz)
 	GetHealth(c *gin.Context)
@@ -130,6 +144,32 @@ func (siw *ServerInterfaceWrapper) Login(c *gin.Context) {
 	}
 
 	siw.Handler.Login(c)
+}
+
+// Logout operation middleware
+func (siw *ServerInterfaceWrapper) Logout(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.Logout(c)
+}
+
+// GetSession operation middleware
+func (siw *ServerInterfaceWrapper) GetSession(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetSession(c)
 }
 
 // GetHealth operation middleware
@@ -188,4 +228,6 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/healthz", wrapper.GetHealth)
 	router.GET(options.BaseURL+"/readyz", wrapper.GetReady)
 	router.POST(options.BaseURL+"/auth/login", wrapper.Login)
+	router.POST(options.BaseURL+"/auth/logout", wrapper.Logout)
+	router.GET(options.BaseURL+"/auth/session", wrapper.GetSession)
 }
