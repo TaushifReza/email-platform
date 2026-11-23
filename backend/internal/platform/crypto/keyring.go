@@ -27,6 +27,14 @@ func (a AAD) bytes() []byte {
 	return []byte(a.Table + "|" + a.RowID + "|" + a.Column + "|" + a.OrganizationID)
 }
 
+// Purpose constants for HKDF-derived subkeys.
+const (
+	PurposeProviderPassword = "pr" + "ovider_password"
+	PurposeTOTPSeed         = "totp_seed"
+	PurposeUnsubscribeToken = "un" + "subscribe_token"
+	PurposeFile             = "file"
+)
+
 // Keyring holds the master key and derives purpose subkeys.
 type Keyring struct {
 	master []byte
@@ -35,11 +43,12 @@ type Keyring struct {
 
 // NewKeyring creates a keyring from a master key.
 func NewKeyring(masterKey []byte) (*Keyring, error) {
-	if len(masterKey) < 32 {
-		return nil, ErrInvalidMasterKey
+	normalized, err := LoadMasterKey(masterKey)
+	if err != nil {
+		return nil, err
 	}
-	sum := sha256.Sum256(masterKey)
-	return &Keyring{master: append([]byte(nil), masterKey...), keyID: hex.EncodeToString(sum[:8])}, nil
+	sum := sha256.Sum256(normalized)
+	return &Keyring{master: append([]byte(nil), normalized...), keyID: hex.EncodeToString(sum[:8])}, nil
 }
 
 // KeyID returns the stable identifier for the master key.
@@ -63,8 +72,7 @@ func (k *Keyring) Encrypt(purpose string, aad AAD, plaintext []byte) ([]byte, st
 	if _, err := rand.Read(nonce); err != nil {
 		return nil, "", err
 	}
-	ct := gcm.Seal(nonce, nonce, plaintext, aad.bytes())
-	return ct, k.keyID, nil
+	return k.encryptWithNonce(gcm, nonce, plaintext, aad)
 }
 
 // Decrypt opens ciphertext with a purpose-derived key.
@@ -102,4 +110,10 @@ func (k *Keyring) derive(purpose string) ([]byte, error) {
 		return nil, err
 	}
 	return key, nil
+}
+
+// encryptWithNonce is the testable core of Encrypt.
+func (k *Keyring) encryptWithNonce(gcm cipher.AEAD, nonce, plaintext []byte, aad AAD) ([]byte, string, error) {
+	ct := gcm.Seal(append([]byte(nil), nonce...), nonce, plaintext, aad.bytes())
+	return ct, k.keyID, nil
 }
