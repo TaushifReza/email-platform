@@ -27,6 +27,7 @@ type OperatorCredentials struct {
 type OperatorSession struct {
 	ID                string
 	OperatorID        string
+	OperatorEmail     string
 	MFAVerified       bool
 	RevokedAt         *string
 	IdleExpiresAt     time.Time

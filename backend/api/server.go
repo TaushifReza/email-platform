@@ -44,6 +44,7 @@ type OperatorIdentityService interface {
 type OperatorAuthService interface {
 	Login(ctx context.Context, email, password string,
 		info identity.ClientInfo) (platformadmin.OperatorSessionResult, error)
+	ValidateSession(ctx context.Context, token string) (platformadmin.Operator, error)
 }
 
 // PlatformAdminService implements ADM-01 and operator audit access.

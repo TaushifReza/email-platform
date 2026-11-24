@@ -2,6 +2,7 @@ package platformadmin
 
 import (
 	"context"
+	"crypto/sha256"
 	"time"
 
 	"github.com/TaushifReza/email-platform/backend/internal/identity"
@@ -30,4 +31,23 @@ func (s *OperatorLoginService) Login(ctx context.Context, email, password string
 		return OperatorSessionResult{}, err
 	}
 	return IssueOperatorSession(ctx, s.repo, s.clock, op, info.IP, info.UserAgent, 12*time.Hour, 24*time.Hour)
+}
+
+func (s *OperatorLoginService) ValidateSession(ctx context.Context, token string) (Operator, error) {
+	if token == "" {
+		return Operator{}, ErrOperatorNotFound
+	}
+	h := sha256.Sum256([]byte(token))
+	rec, err := s.repo.LookupOperatorSession(ctx, h[:])
+	if err != nil {
+		return Operator{}, ErrOperatorNotFound
+	}
+	now := s.clock.Now()
+	if rec.RevokedAt != nil {
+		return Operator{}, ErrOperatorNotFound
+	}
+	if !rec.IdleExpiresAt.After(now) || !rec.AbsoluteExpiresAt.After(now) {
+		return Operator{}, ErrOperatorNotFound
+	}
+	return Operator{ID: rec.OperatorID, Email: rec.OperatorEmail}, nil
 }

@@ -10,6 +10,7 @@ AS $$
         SELECT jsonb_build_object(
             'session_id', s.id,
             'operator_id', s.operator_id,
+            'operator_email', o.email,
             'mfa_verified', s.mfa_verified,
             'revoked_at', s.revoked_at,
             'idle_expires_at', s.idle_expires_at,

@@ -82,6 +82,7 @@ func (r *repository) LookupOperatorSession(ctx context.Context, tokenHash []byte
 		var payload struct {
 			SessionID         string    `json:"session_id"`
 			OperatorID        string    `json:"operator_id"`
+			OperatorEmail     string    `json:"operator_email"`
 			MFAVerified       bool      `json:"mfa_verified"`
 			RevokedAt         *string   `json:"revoked_at"`
 			IdleExpiresAt     time.Time `json:"idle_expires_at"`
@@ -93,6 +94,7 @@ func (r *repository) LookupOperatorSession(ctx context.Context, tokenHash []byte
 		out = OperatorSession{
 			ID:                payload.SessionID,
 			OperatorID:        payload.OperatorID,
+			OperatorEmail:     payload.OperatorEmail,
 			MFAVerified:       payload.MFAVerified,
 			RevokedAt:         payload.RevokedAt,
 			IdleExpiresAt:     payload.IdleExpiresAt,
