@@ -8,6 +8,7 @@ package sqlc
 import (
 	"context"
 	"encoding/json"
+	"time"
 )
 
 const createOperator = `-- name: CreateOperator :execrows
@@ -27,6 +28,36 @@ func (q *Queries) CreateOperator(ctx context.Context, arg CreateOperatorParams) 
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const createOperatorSession = `-- name: CreateOperatorSession :exec
+INSERT INTO operator_sessions (id, operator_id, token_hash, mfa_verified, ip, user_agent, idle_expires_at, absolute_expires_at)
+VALUES ($1::uuid, $2::uuid, $3::bytea, $4::boolean, $5::inet, $6::text, $7::timestamptz, $8::timestamptz)
+`
+
+type CreateOperatorSessionParams struct {
+	ID                string
+	OperatorID        string
+	TokenHash         []byte
+	MfaVerified       bool
+	Ip                string
+	UserAgent         string
+	IdleExpiresAt     time.Time
+	AbsoluteExpiresAt time.Time
+}
+
+func (q *Queries) CreateOperatorSession(ctx context.Context, arg CreateOperatorSessionParams) error {
+	_, err := q.db.ExecContext(ctx, createOperatorSession,
+		arg.ID,
+		arg.OperatorID,
+		arg.TokenHash,
+		arg.MfaVerified,
+		arg.Ip,
+		arg.UserAgent,
+		arg.IdleExpiresAt,
+		arg.AbsoluteExpiresAt,
+	)
+	return err
 }
 
 const listOperatorAuditEntries = `-- name: ListOperatorAuditEntries :many
@@ -100,4 +131,32 @@ func (q *Queries) LookupOperatorCredentials(ctx context.Context, email string) (
 	var payload json.RawMessage
 	err := row.Scan(&payload)
 	return payload, err
+}
+
+const lookupOperatorSession = `-- name: LookupOperatorSession :one
+SELECT auth_lookup_operator_session($1::bytea) AS payload
+`
+
+func (q *Queries) LookupOperatorSession(ctx context.Context, tokenHash []byte) (json.RawMessage, error) {
+	row := q.db.QueryRowContext(ctx, lookupOperatorSession, tokenHash)
+	var payload json.RawMessage
+	err := row.Scan(&payload)
+	return payload, err
+}
+
+const revokeOperatorSession = `-- name: RevokeOperatorSession :exec
+UPDATE operator_sessions
+SET revoked_at = $1::timestamptz
+WHERE token_hash = $2::bytea
+  AND revoked_at IS NULL
+`
+
+type RevokeOperatorSessionParams struct {
+	Now       time.Time
+	TokenHash []byte
+}
+
+func (q *Queries) RevokeOperatorSession(ctx context.Context, arg RevokeOperatorSessionParams) error {
+	_, err := q.db.ExecContext(ctx, revokeOperatorSession, arg.Now, arg.TokenHash)
+	return err
 }
