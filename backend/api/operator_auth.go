@@ -25,6 +25,17 @@ func (s *Server) authenticateOperator(c *gin.Context) {
 		c.Abort()
 		return
 	}
+	token, errCookie := c.Cookie(cookieName(s.cfg))
+	_ = errCookie
+	if token != "" && s.operatorAuth != nil {
+		op, err := s.operatorAuth.ValidateSession(c.Request.Context(), token)
+		if err == nil {
+			c.Set(contextKeyOperator, op)
+			c.Set(contextKeyActor, identity.PlatformAdminActor(op.ID))
+			c.Next()
+			return
+		}
+	}
 	email := c.GetHeader(s.cfg.OperatorHeader())
 	if email == "" {
 		RespondProblem(c, http.StatusUnauthorized, CodeUnauthorized, "No operator identity", nil)
