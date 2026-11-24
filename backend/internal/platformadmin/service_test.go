@@ -14,14 +14,15 @@ import (
 )
 
 type fakeRepository struct {
-	operator     Operator
-	lookedUp     string
-	createdOrgID string
-	orgEntry     audit.Entry
-	statusCalls  []string
-	statusEntry  audit.Entry
-	limitEntry   audit.Entry
-	auditPage    Page
+	operator             Operator
+	operatorPasswordHash string
+	lookedUp             string
+	createdOrgID         string
+	orgEntry             audit.Entry
+	statusCalls          []string
+	statusEntry          audit.Entry
+	limitEntry           audit.Entry
+	auditPage            Page
 }
 
 func (f *fakeRepository) LookupOperatorByEmail(_ context.Context, email string) (Operator, error) {
@@ -31,7 +32,10 @@ func (f *fakeRepository) LookupOperatorByEmail(_ context.Context, email string) 
 
 func (f *fakeRepository) LookupOperatorCredentials(_ context.Context, email string) (OperatorCredentials, error) {
 	f.lookedUp = email
-	return OperatorCredentials{Operator: f.operator}, nil
+	return OperatorCredentials{
+		Operator:     Operator{ID: f.operator.ID, Email: email},
+		PasswordHash: f.operatorPasswordHash,
+	}, nil
 }
 
 func (f *fakeRepository) CreateOperatorSession(context.Context, string, string, []byte, bool,
