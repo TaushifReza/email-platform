@@ -112,6 +112,7 @@ func main() {
 
 	operatorRepo := platformadmin.NewRepository(pool)
 	operatorIdentity := platformadmin.NewIdentityService(operatorRepo)
+	operatorAuth := platformadmin.NewOperatorLoginService(operatorRepo, operatorIdentity, clock.System{})
 	platformAdminService := platformadmin.NewService(operatorRepo, clock.System{})
 
 	gin.SetMode(gin.ReleaseMode)
@@ -126,6 +127,7 @@ func main() {
 	server.SetUserService(userService)
 	server.SetProviderService(providerService)
 	server.SetOperatorIdentityService(operatorIdentity)
+	server.SetOperatorAuthService(operatorAuth)
 	server.SetPlatformAdminService(platformAdminService)
 	server.SetConfig(cfg)
 	router.Use(api.RequestIDMiddleware())
