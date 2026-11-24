@@ -74,6 +74,13 @@ export function login(email: string, password: string): Promise<LoginResponse> {
   });
 }
 
+export function operatorLogin(email: string, password: string): Promise<{ operator_id: string }> {
+  return request<{ operator_id: string }>("/api/auth/operator/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
 export function logout(): Promise<void> {
   return request<void>("/api/auth/logout", { method: "POST" });
 }
