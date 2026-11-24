@@ -90,3 +90,14 @@ func (q *Queries) LookupOperatorByEmail(ctx context.Context, email string) (json
 	err := row.Scan(&payload)
 	return payload, err
 }
+
+const lookupOperatorCredentials = `-- name: LookupOperatorCredentials :one
+SELECT auth_lookup_operator_credentials($1::text) AS payload
+`
+
+func (q *Queries) LookupOperatorCredentials(ctx context.Context, email string) (json.RawMessage, error) {
+	row := q.db.QueryRowContext(ctx, lookupOperatorCredentials, email)
+	var payload json.RawMessage
+	err := row.Scan(&payload)
+	return payload, err
+}

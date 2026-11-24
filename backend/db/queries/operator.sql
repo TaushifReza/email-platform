@@ -1,6 +1,9 @@
 -- name: LookupOperatorByEmail :one
 SELECT auth_lookup_operator(sqlc.arg(email)::text) AS payload;
 
+-- name: LookupOperatorCredentials :one
+SELECT auth_lookup_operator_credentials(sqlc.arg(email)::text) AS payload;
+
 -- name: CreateOperator :execrows
 INSERT INTO operators (id, email, status)
 VALUES (sqlc.arg(id)::uuid, sqlc.arg(email)::text, 'active')
