@@ -28,6 +28,13 @@ func (f *fakeOperatorIdentity) Authenticate(_ context.Context, email string) (pl
 	return f.operator, f.err
 }
 
+func (f *fakeOperatorIdentity) AuthenticateWithPassword(_ context.Context, email,
+	_ string,
+) (platformadmin.Operator, error) {
+	f.gotEmail = email
+	return f.operator, f.err
+}
+
 type fakePlatformAdmin struct {
 	err      error
 	created  bool

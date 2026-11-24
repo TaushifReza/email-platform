@@ -37,6 +37,13 @@ type UserService interface {
 // OperatorIdentityService resolves the trusted IdP identity to an operator.
 type OperatorIdentityService interface {
 	Authenticate(ctx context.Context, email string) (platformadmin.Operator, error)
+	AuthenticateWithPassword(ctx context.Context, email, password string) (platformadmin.Operator, error)
+}
+
+// OperatorAuthService issues operator sessions for frontend login.
+type OperatorAuthService interface {
+	Login(ctx context.Context, email, password string,
+		info identity.ClientInfo) (platformadmin.OperatorSessionResult, error)
 }
 
 // PlatformAdminService implements ADM-01 and operator audit access.
@@ -60,6 +67,7 @@ type Server struct {
 	organizations    OrganizationService
 	users            UserService
 	operatorIdentity OperatorIdentityService
+	operatorAuth     OperatorAuthService
 	platformAdmin    PlatformAdminService
 	providerSvc      ProviderService
 	logger           *zap.Logger
@@ -80,6 +88,9 @@ func (s *Server) SetMFAService(m MFAService) { s.mfa = m }
 
 // SetOperatorIdentityService attaches the operator identity provider.
 func (s *Server) SetOperatorIdentityService(o OperatorIdentityService) { s.operatorIdentity = o }
+
+// SetOperatorAuthService attaches the operator login service.
+func (s *Server) SetOperatorAuthService(a OperatorAuthService) { s.operatorAuth = a }
 
 // SetPlatformAdminService attaches operator organization management.
 func (s *Server) SetPlatformAdminService(p PlatformAdminService) { s.platformAdmin = p }
