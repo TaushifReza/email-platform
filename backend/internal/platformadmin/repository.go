@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/TaushifReza/email-platform/backend/internal/audit"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/db"
@@ -15,6 +16,8 @@ import (
 type repository struct {
 	db *db.DB
 }
+
+const nullJSON = "null"
 
 func NewRepository(database *db.DB) Repository {
 	return &repository{db: database}
@@ -33,7 +36,7 @@ func (r *repository) LookupOperatorByEmail(ctx context.Context, email string) (O
 		if err != nil {
 			return err
 		}
-		if len(raw) == 0 || string(raw) == "null" {
+		if len(raw) == 0 || string(raw) == nullJSON {
 			return nil
 		}
 		var payload operatorPayload
@@ -48,6 +51,67 @@ func (r *repository) LookupOperatorByEmail(ctx context.Context, email string) (O
 	return out, err
 }
 
+func (r *repository) CreateOperatorSession(ctx context.Context, id, operatorID string,
+	tokenHash []byte, mfaVerified bool, ip, userAgent string,
+	idleExpiresAt, absoluteExpiresAt time.Time,
+) error {
+	return r.db.WithSystem(ctx, func(tx *sql.Tx) error {
+		return sqlc.New(tx).CreateOperatorSession(ctx, sqlc.CreateOperatorSessionParams{
+			ID:                id,
+			OperatorID:        operatorID,
+			TokenHash:         tokenHash,
+			MfaVerified:       mfaVerified,
+			Ip:                ip,
+			UserAgent:         userAgent,
+			IdleExpiresAt:     idleExpiresAt,
+			AbsoluteExpiresAt: absoluteExpiresAt,
+		})
+	})
+}
+
+func (r *repository) LookupOperatorSession(ctx context.Context, tokenHash []byte) (OperatorSession, error) {
+	var out OperatorSession
+	err := r.db.WithPreAuth(ctx, func(tx *sql.Tx) error {
+		raw, err := sqlc.New(tx).LookupOperatorSession(ctx, tokenHash)
+		if err != nil {
+			return err
+		}
+		if len(raw) == 0 || string(raw) == nullJSON {
+			return ErrOperatorNotFound
+		}
+		var payload struct {
+			SessionID         string    `json:"session_id"`
+			OperatorID        string    `json:"operator_id"`
+			MFAVerified       bool      `json:"mfa_verified"`
+			RevokedAt         *string   `json:"revoked_at"`
+			IdleExpiresAt     time.Time `json:"idle_expires_at"`
+			AbsoluteExpiresAt time.Time `json:"absolute_expires_at"`
+		}
+		if err := json.Unmarshal(raw, &payload); err != nil {
+			return err
+		}
+		out = OperatorSession{
+			ID:                payload.SessionID,
+			OperatorID:        payload.OperatorID,
+			MFAVerified:       payload.MFAVerified,
+			RevokedAt:         payload.RevokedAt,
+			IdleExpiresAt:     payload.IdleExpiresAt,
+			AbsoluteExpiresAt: payload.AbsoluteExpiresAt,
+		}
+		return nil
+	})
+	return out, err
+}
+
+func (r *repository) RevokeOperatorSession(ctx context.Context, tokenHash []byte, now time.Time) error {
+	return r.db.WithSystem(ctx, func(tx *sql.Tx) error {
+		return sqlc.New(tx).RevokeOperatorSession(ctx, sqlc.RevokeOperatorSessionParams{
+			Now:       now,
+			TokenHash: tokenHash,
+		})
+	})
+}
+
 func (r *repository) LookupOperatorCredentials(ctx context.Context, email string) (OperatorCredentials, error) {
 	var out OperatorCredentials
 	err := r.db.WithPreAuth(ctx, func(tx *sql.Tx) error {
@@ -55,7 +119,7 @@ func (r *repository) LookupOperatorCredentials(ctx context.Context, email string
 		if err != nil {
 			return err
 		}
-		if len(raw) == 0 || string(raw) == "null" {
+		if len(raw) == 0 || string(raw) == nullJSON {
 			return ErrOperatorNotFound
 		}
 		var payload struct {

@@ -34,6 +34,20 @@ func (f *fakeRepository) LookupOperatorCredentials(_ context.Context, email stri
 	return OperatorCredentials{Operator: f.operator}, nil
 }
 
+func (f *fakeRepository) CreateOperatorSession(context.Context, string, string, []byte, bool,
+	string, string, time.Time, time.Time,
+) error {
+	return nil
+}
+
+func (f *fakeRepository) LookupOperatorSession(context.Context, []byte) (OperatorSession, error) {
+	return OperatorSession{}, nil
+}
+
+func (f *fakeRepository) RevokeOperatorSession(context.Context, []byte, time.Time) error {
+	return nil
+}
+
 func (f *fakeRepository) CreateOperator(context.Context, string, string) (bool, error) {
 	return true, nil
 }
