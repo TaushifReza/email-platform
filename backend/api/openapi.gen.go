@@ -122,6 +122,20 @@ type CreateOrganizationRequest struct {
 	TimeZone          *string `json:"timeZone,omitempty"`
 }
 
+// CreateProviderRequest defines model for CreateProviderRequest.
+type CreateProviderRequest struct {
+	DailyLimit  *int   `json:"dailyLimit,omitempty"`
+	FromAddress string `json:"fromAddress"`
+	Host        string `json:"host"`
+	HourLimit   *int   `json:"hourLimit,omitempty"`
+	IsDefault   *bool  `json:"isDefault,omitempty"`
+	MinuteLimit *int   `json:"minuteLimit,omitempty"`
+	Password    string `json:"password"`
+	Port        int    `json:"port"`
+	TlsMode     string `json:"tlsMode"`
+	Username    string `json:"username"`
+}
+
 // FieldError defines model for FieldError.
 type FieldError struct {
 	Code    string `json:"code"`
@@ -250,6 +264,30 @@ type Problem struct {
 // ProblemCode defines model for Problem.Code.
 type ProblemCode string
 
+// Provider defines model for Provider.
+type Provider struct {
+	ConfigVersion *int       `json:"configVersion,omitempty"`
+	CreatedAt     *time.Time `json:"createdAt,omitempty"`
+	DailyLimit    *int       `json:"dailyLimit,omitempty"`
+	FromAddress   *string    `json:"fromAddress,omitempty"`
+	Host          *string    `json:"host,omitempty"`
+	HourLimit     *int       `json:"hourLimit,omitempty"`
+	Id            *string    `json:"id,omitempty"`
+	IsDefault     *bool      `json:"isDefault,omitempty"`
+	MinuteLimit   *int       `json:"minuteLimit,omitempty"`
+	Port          *int       `json:"port,omitempty"`
+	Status        *string    `json:"status,omitempty"`
+	TlsMode       *string    `json:"tlsMode,omitempty"`
+	UpdatedAt     *time.Time `json:"updatedAt,omitempty"`
+	Username      *string    `json:"username,omitempty"`
+	VerifiedAt    *time.Time `json:"verifiedAt,omitempty"`
+}
+
+// ProviderList defines model for ProviderList.
+type ProviderList struct {
+	Data *[]Provider `json:"data,omitempty"`
+}
+
 // ReadyResponse defines model for ReadyResponse.
 type ReadyResponse struct {
 	Checks struct {
@@ -267,6 +305,12 @@ type ReadyResponse struct {
 // ReadyResponseStatus Example: ok
 type ReadyResponseStatus string
 
+// RotateProviderRequest defines model for RotateProviderRequest.
+type RotateProviderRequest struct {
+	Password string  `json:"password"`
+	Username *string `json:"username,omitempty"`
+}
+
 // SessionResponse defines model for SessionResponse.
 type SessionResponse struct {
 	MfaVerified    bool   `json:"mfa_verified"`
@@ -279,6 +323,18 @@ type SessionResponse struct {
 type StepUpRequest struct {
 	Code     string `json:"code"`
 	Password string `json:"password"`
+}
+
+// UpdateProviderRequest defines model for UpdateProviderRequest.
+type UpdateProviderRequest struct {
+	DailyLimit  *int    `json:"dailyLimit,omitempty"`
+	FromAddress *string `json:"fromAddress,omitempty"`
+	Host        *string `json:"host,omitempty"`
+	HourLimit   *int    `json:"hourLimit,omitempty"`
+	IsDefault   *bool   `json:"isDefault,omitempty"`
+	MinuteLimit *int    `json:"minuteLimit,omitempty"`
+	Port        *int    `json:"port,omitempty"`
+	TlsMode     *string `json:"tlsMode,omitempty"`
 }
 
 // UpdateUserRequest defines model for UpdateUserRequest.
@@ -349,6 +405,15 @@ type UpdateOrganizationJSONRequestBody = OrganizationProfileUpdate
 
 // UpdateOrganizationPolicyJSONRequestBody defines body for UpdateOrganizationPolicy for application/json ContentType.
 type UpdateOrganizationPolicyJSONRequestBody = OrganizationPolicyUpdate
+
+// CreateProviderJSONRequestBody defines body for CreateProvider for application/json ContentType.
+type CreateProviderJSONRequestBody = CreateProviderRequest
+
+// UpdateProviderJSONRequestBody defines body for UpdateProvider for application/json ContentType.
+type UpdateProviderJSONRequestBody = UpdateProviderRequest
+
+// RotateProviderSecretJSONRequestBody defines body for RotateProviderSecret for application/json ContentType.
+type RotateProviderSecretJSONRequestBody = RotateProviderRequest
 
 // InviteUserJSONRequestBody defines body for InviteUser for application/json ContentType.
 type InviteUserJSONRequestBody = InviteUserRequest
@@ -421,6 +486,21 @@ type ServerInterface interface {
 	// UpdateOrganizationPolicy Update organization policy
 	// (PATCH /organization/policy)
 	UpdateOrganizationPolicy(c *gin.Context)
+	// ListProviders List providers in the organization
+	// (GET /providers)
+	ListProviders(c *gin.Context)
+	// CreateProvider Create a provider
+	// (POST /providers)
+	CreateProvider(c *gin.Context)
+	// UpdateProvider Update provider configuration
+	// (PATCH /providers/{providerId})
+	UpdateProvider(c *gin.Context, providerId string)
+	// DeactivateProvider Deactivate a provider
+	// (POST /providers/{providerId}/deactivate)
+	DeactivateProvider(c *gin.Context, providerId string)
+	// RotateProviderSecret Rotate provider credentials
+	// (POST /providers/{providerId}/rotate)
+	RotateProviderSecret(c *gin.Context, providerId string)
 	// GetReady Readiness check
 	// (GET /readyz)
 	GetReady(c *gin.Context)
@@ -797,6 +877,107 @@ func (siw *ServerInterfaceWrapper) UpdateOrganizationPolicy(c *gin.Context) {
 	siw.Handler.UpdateOrganizationPolicy(c)
 }
 
+// ListProviders operation middleware
+func (siw *ServerInterfaceWrapper) ListProviders(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.ListProviders(c)
+}
+
+// CreateProvider operation middleware
+func (siw *ServerInterfaceWrapper) CreateProvider(c *gin.Context) {
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.CreateProvider(c)
+}
+
+// UpdateProvider operation middleware
+func (siw *ServerInterfaceWrapper) UpdateProvider(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "providerId" -------------
+	var providerId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "providerId", c.Param("providerId"), &providerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter providerId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.UpdateProvider(c, providerId)
+}
+
+// DeactivateProvider operation middleware
+func (siw *ServerInterfaceWrapper) DeactivateProvider(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "providerId" -------------
+	var providerId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "providerId", c.Param("providerId"), &providerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter providerId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.DeactivateProvider(c, providerId)
+}
+
+// RotateProviderSecret operation middleware
+func (siw *ServerInterfaceWrapper) RotateProviderSecret(c *gin.Context) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "providerId" -------------
+	var providerId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "providerId", c.Param("providerId"), &providerId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter providerId: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.RotateProviderSecret(c, providerId)
+}
+
 // GetReady operation middleware
 func (siw *ServerInterfaceWrapper) GetReady(c *gin.Context) {
 
@@ -906,6 +1087,11 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/users", wrapper.ListUsers)
 	router.POST(options.BaseURL+"/users/invitations", wrapper.InviteUser)
 	router.PATCH(options.BaseURL+"/users/:userId", wrapper.UpdateUser)
+	router.GET(options.BaseURL+"/providers", wrapper.ListProviders)
+	router.POST(options.BaseURL+"/providers", wrapper.CreateProvider)
+	router.PATCH(options.BaseURL+"/providers/:providerId", wrapper.UpdateProvider)
+	router.POST(options.BaseURL+"/providers/:providerId/rotate", wrapper.RotateProviderSecret)
+	router.POST(options.BaseURL+"/providers/:providerId/deactivate", wrapper.DeactivateProvider)
 	router.GET(options.BaseURL+"/operator/session", wrapper.GetOperatorSession)
 	router.GET(options.BaseURL+"/operator/organizations", wrapper.ListOperatorOrganizations)
 	router.POST(options.BaseURL+"/operator/organizations", wrapper.CreateOperatorOrganization)

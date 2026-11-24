@@ -37,6 +37,27 @@ type AuthToken struct {
 	CreatedAt      time.Time
 }
 
+type EmailProvider struct {
+	ID                string
+	OrganizationID    string
+	Host              string
+	Port              int32
+	TlsMode           string
+	Username          string
+	PasswordEncrypted []byte
+	PasswordKeyID     string
+	FromAddress       string
+	IsDefault         bool
+	Status            string
+	DailyLimit        int32
+	MinuteLimit       int32
+	HourLimit         int32
+	ConfigVersion     int32
+	VerifiedAt        sql.NullTime
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
 type Invitation struct {
 	ID              string
 	OrganizationID  string

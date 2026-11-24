@@ -410,6 +410,134 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
+  /providers:
+    get:
+      operationId: listProviders
+      summary: List providers in the organization
+      responses:
+        '200':
+          description: Providers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderList'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    post:
+      operationId: createProvider
+      summary: Create a provider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProviderRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Provider'
+        '400':
+          description: Invalid request
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /providers/{providerId}:
+    patch:
+      operationId: updateProvider
+      summary: Update provider configuration
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProviderRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Provider'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /providers/{providerId}/rotate:
+    post:
+      operationId: rotateProviderSecret
+      summary: Rotate provider credentials
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RotateProviderRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Provider'
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /providers/{providerId}/deactivate:
+    post:
+      operationId: deactivateProvider
+      summary: Deactivate a provider
+      parameters:
+        - name: providerId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deactivated
+        '403':
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Conflict (default provider)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
   /operator/session:
     get:
       operationId: getOperatorSession
@@ -801,6 +929,100 @@ components:
           type: string
         deactivate:
           type: boolean
+    Provider:
+      type: object
+      properties:
+        id:
+          type: string
+        host:
+          type: string
+        port:
+          type: integer
+        tlsMode:
+          type: string
+        username:
+          type: string
+        fromAddress:
+          type: string
+        isDefault:
+          type: boolean
+        status:
+          type: string
+        dailyLimit:
+          type: integer
+        minuteLimit:
+          type: integer
+        hourLimit:
+          type: integer
+        configVersion:
+          type: integer
+        verifiedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ProviderList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Provider'
+    CreateProviderRequest:
+      type: object
+      required: [host, port, tlsMode, username, password, fromAddress]
+      properties:
+        host:
+          type: string
+        port:
+          type: integer
+        tlsMode:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+        fromAddress:
+          type: string
+        isDefault:
+          type: boolean
+        dailyLimit:
+          type: integer
+        minuteLimit:
+          type: integer
+        hourLimit:
+          type: integer
+    UpdateProviderRequest:
+      type: object
+      properties:
+        host:
+          type: string
+        port:
+          type: integer
+        tlsMode:
+          type: string
+        fromAddress:
+          type: string
+        isDefault:
+          type: boolean
+        dailyLimit:
+          type: integer
+        minuteLimit:
+          type: integer
+        hourLimit:
+          type: integer
+    RotateProviderRequest:
+      type: object
+      required: [password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
     OperatorSession:
       type: object
       required: [id, email, role]

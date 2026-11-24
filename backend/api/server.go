@@ -61,6 +61,7 @@ type Server struct {
 	users            UserService
 	operatorIdentity OperatorIdentityService
 	platformAdmin    PlatformAdminService
+	providerSvc      ProviderService
 	logger           *zap.Logger
 	cfg              config.Config
 }
@@ -82,6 +83,9 @@ func (s *Server) SetOperatorIdentityService(o OperatorIdentityService) { s.opera
 
 // SetPlatformAdminService attaches operator organization management.
 func (s *Server) SetPlatformAdminService(p PlatformAdminService) { s.platformAdmin = p }
+
+// SetProviderService attaches the provider service.
+func (s *Server) SetProviderService(p ProviderService) { s.providerSvc = p }
 
 // NewServer creates an API server.
 func NewServer(healthService *health.Service, auth AuthService, logger *zap.Logger) *Server {

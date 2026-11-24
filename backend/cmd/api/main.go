@@ -16,11 +16,13 @@ import (
 	"github.com/TaushifReza/email-platform/backend/internal/platform/config"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/crypto"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/db"
+	"github.com/TaushifReza/email-platform/backend/internal/platform/dialer"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/health"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/logging"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/outbox"
 	"github.com/TaushifReza/email-platform/backend/internal/platform/ratelimit"
 	"github.com/TaushifReza/email-platform/backend/internal/platformadmin"
+	"github.com/TaushifReza/email-platform/backend/internal/providers"
 	"github.com/TaushifReza/email-platform/backend/internal/tenancy"
 	"github.com/gin-gonic/gin"
 	redis "github.com/go-redis/redis/v8"
@@ -104,6 +106,10 @@ func main() {
 	orgService := tenancy.NewService(orgRepo, clock.System{})
 	userService := identity.NewUserService(userRepo, sessionRepo, accessService, clock.System{})
 
+	dialerInst := dialer.New(dialer.Options{})
+	providerRepo := providers.NewRepository(pool)
+	providerService := providers.NewService(providerRepo, keyring, dialerInst, clock.System{})
+
 	operatorRepo := platformadmin.NewRepository(pool)
 	operatorIdentity := platformadmin.NewIdentityService(operatorRepo)
 	platformAdminService := platformadmin.NewService(operatorRepo, clock.System{})
@@ -118,6 +124,7 @@ func main() {
 	server.SetAccessService(accessService)
 	server.SetOrganizationService(orgService)
 	server.SetUserService(userService)
+	server.SetProviderService(providerService)
 	server.SetOperatorIdentityService(operatorIdentity)
 	server.SetPlatformAdminService(platformAdminService)
 	server.SetConfig(cfg)
