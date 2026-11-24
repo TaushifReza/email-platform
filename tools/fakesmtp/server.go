@@ -13,6 +13,7 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 )
@@ -24,6 +25,7 @@ type Server struct {
 	httpServer   *http.Server
 	script       *Script
 	cert         *tls.Certificate
+	certPEM      []byte
 
 	mu       sync.RWMutex
 	messages []*Message
@@ -60,12 +62,14 @@ func New(opts Options) (*Server, error) {
 	}
 
 	var cert *tls.Certificate
+	var certPEM []byte
 	if script.TLS != TLSNone || opts.TLSCertFile != "" || opts.TLSKeyFile != "" {
-		loaded, err := loadCertificate(opts.TLSCertFile, opts.TLSKeyFile)
+		loaded, pemBytes, err := loadCertificate(opts.TLSCertFile, opts.TLSKeyFile)
 		if err != nil {
 			return nil, err
 		}
 		cert = loaded
+		certPEM = pemBytes
 	}
 
 	smtpListener, err := net.Listen("tcp", smtpAddr)
@@ -84,6 +88,7 @@ func New(opts Options) (*Server, error) {
 		httpListener: httpListener,
 		script:       script,
 		cert:         cert,
+		certPEM:      certPEM,
 		done:         make(chan struct{}),
 	}
 	server.httpServer = &http.Server{
@@ -117,6 +122,12 @@ func (s *Server) Shutdown() error {
 // SMTPAddr returns the SMTP listen address.
 func (s *Server) SMTPAddr() string {
 	return s.smtpListener.Addr().String()
+}
+
+// CACertPEM returns the PEM-encoded certificate used by the fake server, so
+// tests can trust it via a root pool instead of disabling verification.
+func (s *Server) CACertPEM() []byte {
+	return s.certPEM
 }
 
 // HTTPAddr returns the HTTP listen address.
@@ -246,26 +257,30 @@ func DefaultScript() *Script {
 	return &Script{TLS: TLSNone}
 }
 
-func loadCertificate(certFile, keyFile string) (*tls.Certificate, error) {
+func loadCertificate(certFile, keyFile string) (*tls.Certificate, []byte, error) {
 	if certFile != "" || keyFile != "" {
 		if certFile == "" || keyFile == "" {
-			return nil, errors.New("both TLSCertFile and TLSKeyFile are required")
+			return nil, nil, errors.New("both TLSCertFile and TLSKeyFile are required")
 		}
 		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 		if err != nil {
-			return nil, fmt.Errorf("load TLS key pair: %w", err)
+			return nil, nil, fmt.Errorf("load TLS key pair: %w", err)
 		}
-		return &cert, nil
+		pemBytes, err := os.ReadFile(certFile) // #nosec G304
+		if err != nil {
+			return nil, nil, fmt.Errorf("read cert: %w", err)
+		}
+		return &cert, pemBytes, nil
 	}
 
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return nil, fmt.Errorf("generate key: %w", err)
+		return nil, nil, fmt.Errorf("generate key: %w", err)
 	}
 
 	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
 	if err != nil {
-		return nil, fmt.Errorf("generate serial: %w", err)
+		return nil, nil, fmt.Errorf("generate serial: %w", err)
 	}
 
 	template := x509.Certificate{
@@ -285,14 +300,14 @@ func loadCertificate(certFile, keyFile string) (*tls.Certificate, error) {
 
 	der, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
 	if err != nil {
-		return nil, fmt.Errorf("create certificate: %w", err)
+		return nil, nil, fmt.Errorf("create certificate: %w", err)
 	}
 
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
 	cert, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
-		return nil, fmt.Errorf("parse certificate: %w", err)
+		return nil, nil, fmt.Errorf("parse certificate: %w", err)
 	}
-	return &cert, nil
+	return &cert, certPEM, nil
 }
