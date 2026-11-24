@@ -31,6 +31,11 @@ Follow-up to WP02 based on owner decisions resolving OQ-16 (2026-11-22).
 - Go: `platformadmin.Repository`, `IdentityService`, `Service`; `api.OperatorIdentityService`,
   `api.PlatformAdminService`; `identity.PlatformAdminActor`; `httpx.IsTrustedPeer`.
 
+## Frontend operator auth (2026-11-24)
+- Operator login now uses frontend `/operator/login` posting to `POST /auth/operator/login`.
+- Session issued as operator session cookie; `/admin` guarded by operator session.
+- Legacy Cloudflare Access header path remains as fallback during transition.
+
 ## Security notes
 - Header is trusted only when the immediate peer is in `TRUSTED_PROXY_CIDRs`; `X-Forwarded-For` is ignored.
 - Lookup is a `SECURITY DEFINER` function; email normalized; unknown/suspended operators get an opaque 403.
