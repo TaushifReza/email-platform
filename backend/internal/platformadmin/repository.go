@@ -48,6 +48,43 @@ func (r *repository) LookupOperatorByEmail(ctx context.Context, email string) (O
 	return out, err
 }
 
+func (r *repository) LookupOperatorCredentials(ctx context.Context, email string) (OperatorCredentials, error) {
+	var out OperatorCredentials
+	err := r.db.WithPreAuth(ctx, func(tx *sql.Tx) error {
+		raw, err := sqlc.New(tx).LookupOperatorCredentials(ctx, email)
+		if err != nil {
+			return err
+		}
+		if len(raw) == 0 || string(raw) == "null" {
+			return ErrOperatorNotFound
+		}
+		var payload struct {
+			ID               string  `json:"id"`
+			Email            string  `json:"email"`
+			Status           string  `json:"status"`
+			PasswordHash     *string `json:"password_hash"`
+			FailedLoginCount int     `json:"failed_login_count"`
+			LockedUntil      *string `json:"locked_until"`
+		}
+		if err := json.Unmarshal(raw, &payload); err != nil {
+			return err
+		}
+		if payload.Status != "active" {
+			return ErrOperatorNotFound
+		}
+		out.Operator = Operator{ID: payload.ID, Email: payload.Email}
+		if payload.PasswordHash != nil {
+			out.PasswordHash = *payload.PasswordHash
+		}
+		out.FailedLoginCount = payload.FailedLoginCount
+		if payload.LockedUntil != nil {
+			out.LockedUntil = payload.LockedUntil
+		}
+		return nil
+	})
+	return out, err
+}
+
 func (r *repository) CreateOperator(ctx context.Context, id, email string) (bool, error) {
 	created := false
 	err := r.db.WithSystem(ctx, func(tx *sql.Tx) error {

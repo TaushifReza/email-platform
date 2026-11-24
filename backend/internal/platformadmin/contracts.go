@@ -14,6 +14,15 @@ type Operator struct {
 	Email string
 }
 
+// OperatorCredentials is used only during frontend operator login. The password
+// hash is never returned by any API.
+type OperatorCredentials struct {
+	Operator
+	PasswordHash     string
+	FailedLoginCount int
+	LockedUntil      *string
+}
+
 // Page bounds an operator list query.
 type Page struct {
 	Limit  int
@@ -40,6 +49,7 @@ type LimitsInput struct {
 // transaction together with the audit entry.
 type Repository interface {
 	LookupOperatorByEmail(ctx context.Context, email string) (Operator, error)
+	LookupOperatorCredentials(ctx context.Context, email string) (OperatorCredentials, error)
 	CreateOperator(ctx context.Context, id, email string) (bool, error)
 	ListOrganizations(ctx context.Context, page Page) ([]tenancy.Organization, error)
 	CreateOrganization(ctx context.Context, id string, in CreateOrganizationInput,

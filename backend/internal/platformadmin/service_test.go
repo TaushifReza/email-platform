@@ -29,6 +29,11 @@ func (f *fakeRepository) LookupOperatorByEmail(_ context.Context, email string) 
 	return f.operator, nil
 }
 
+func (f *fakeRepository) LookupOperatorCredentials(_ context.Context, email string) (OperatorCredentials, error) {
+	f.lookedUp = email
+	return OperatorCredentials{Operator: f.operator}, nil
+}
+
 func (f *fakeRepository) CreateOperator(context.Context, string, string) (bool, error) {
 	return true, nil
 }
@@ -187,4 +192,8 @@ type failingLookupRepository struct{ fakeRepository }
 
 func (f *failingLookupRepository) LookupOperatorByEmail(context.Context, string) (Operator, error) {
 	return Operator{}, errLookupDown
+}
+
+func (f *failingLookupRepository) LookupOperatorCredentials(context.Context, string) (OperatorCredentials, error) {
+	return OperatorCredentials{}, errLookupDown
 }
