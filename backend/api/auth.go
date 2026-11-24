@@ -67,6 +67,37 @@ func (s *Server) Login(c *gin.Context) {
 	RespondProblem(c, http.StatusInternalServerError, CodeInternalError, "Internal server error", nil)
 }
 
+// OperatorLogin implements POST /auth/operator/login.
+func (s *Server) OperatorLogin(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxLoginBodyBytes)
+
+	var req LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		RespondProblem(c, http.StatusBadRequest, CodeInvalidRequest, "Invalid request body", nil)
+		return
+	}
+	if strings.TrimSpace(req.Email) == "" || req.Password == "" {
+		RespondProblem(c, http.StatusBadRequest, CodeInvalidRequest, "Invalid request fields", nil)
+		return
+	}
+	if s.operatorAuth == nil {
+		RespondProblem(c, http.StatusServiceUnavailable, CodeUnavailable, "Operator authentication unavailable", nil)
+		return
+	}
+	info := identity.ClientInfo{
+		IP:        httpx.ClientIP(c.Request, s.cfg.TrustedProxyCIDRs),
+		UserAgent: c.Request.UserAgent(),
+	}
+	result, err := s.operatorAuth.Login(c.Request.Context(), req.Email, req.Password, info)
+	if err != nil {
+		RespondProblem(c, http.StatusUnauthorized, CodeInvalidCredentials, "Invalid credentials", nil)
+		return
+	}
+	setSessionCookie(c.Writer, s.cfg, result.Token, int(time.Until(result.AbsoluteExpiresAt).Seconds()))
+	c.JSON(http.StatusOK, gin.H{"operator_id": result.OperatorID})
+}
+
 // Logout implements POST /auth/logout.
 func (s *Server) Logout(c *gin.Context) {
 	token, _ := c.Cookie(cookieName(s.cfg))        //nolint:errcheck
